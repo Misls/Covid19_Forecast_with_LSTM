@@ -35,18 +35,24 @@ for col in data_all.columns:
    print(col)
 
 
-#print(data_all['MW'].head(50))
-
 ############################# data preprocessing ####################
 
 # convert a week into a date (aim: inperpolate between the weekly data to get daily data)
 
 
 def process(data_all):
-    datetime = Week(data_all.loc[43, 'Meldejahr'],data_all.loc[43, 'MW']).thursday()
-    return datetime
+    dates = []
+    for i in range(len(data_all['MW'])):
+        date = Week(
+            int(data_all.loc[i, 'Meldejahr']),
+            int(data_all.loc[i, 'MW'])
+            ).thursday()
+        dates.append(date.isoformat())
+    return dates
 
-#data_all = data_all.drop([43])
+
+
+#data_all = data_all.drop(index=43)
 print(data_all[['MW']].head(50))
 
 dates = process(data_all)
