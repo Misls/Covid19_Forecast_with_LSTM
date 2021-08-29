@@ -53,6 +53,19 @@ print(data_all.head(5))
 # merge dataframes on 'Datum' and interpolate missing data in data_all
 data_merged = pd.merge(data_RWert,data_all,how='outer',on=['Datum'])
 data = data_merged.interpolate(method= 'spline',order=5).dropna()
+data.drop(data.loc[data['Fälle gesamt']<0].index,inplace=True) # drop unrealistic case numbers from interpolation
+data.reset_index(drop=True, inplace=True)
+
+# create a column for the prevailing trend: 0 = decreasing and 1 = increasing
+trend = np.ones((len(data),1)).astype(int)
+for i in range(len(data)):
+    if i == 0:
+        if data.loc[i,'Fälle gesamt']>data.loc[i+1,'Fälle gesamt']:
+            trend[i]=0
+    else:
+        if data.loc[i,'Fälle gesamt']<data.loc[i-1,'Fälle gesamt']:
+            trend[i]=0
+data['Trend'] = trend
 
 
 
