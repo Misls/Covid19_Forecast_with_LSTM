@@ -1,3 +1,5 @@
+.Jupyter_test_ files/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -125,5 +127,4 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
-# Pyre type checker
-.pyre/
+# Py
