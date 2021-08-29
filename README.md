@@ -1,6 +1,6 @@
 # Covid19_Forecast
 
-## These are the git commands I already learned
+## Git commands
 
 - git clone
 - git branch
