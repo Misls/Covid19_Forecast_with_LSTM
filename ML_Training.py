@@ -17,16 +17,15 @@ import datetime
 # machine learning algorithms:
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.neighbors import NearestNeighbors
-
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.ensemble import BaggingClassifier
 from sklearn.svm import SVC
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.neural_network import MLPClassifier
+from sklearn.linear_model import RidgeClassifier
 
 # preprocessing and evaluating:
 from sklearn.preprocessing import LabelEncoder
@@ -34,6 +33,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import RepeatedStratifiedKFold
+
 
 # saving model:
 import pickle
@@ -58,6 +58,18 @@ def evaluate_model(X, y, model):
 # define models to test
 def get_models():
     models, names = list(), list()
+    # RidgeClassifier
+    models.append(RidgeClassifier())
+    names.append('RID')
+    # MLPClassifier
+    models.append(MLPClassifier(hidden_layer_sizes = 10, learning_rate='adaptive',tol=0.001,max_iter=2000))
+    names.append('MLP')
+    # LinearDiscriminantAnalysis
+    models.append(LinearDiscriminantAnalysis())
+    names.append('LDA')
+    # KNeighbors
+    models.append(KNeighborsClassifier())
+    names.append('KN')
     # LogisticRegression
     models.append(LogisticRegression())
     names.append('Log')

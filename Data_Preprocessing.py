@@ -26,7 +26,7 @@ data_RWert = pd.read_csv('https://raw.githubusercontent.com/robert-koch-institut
 #data_vaccinations = pd.read_csv('https://github.com/robert-koch-institut/COVID-19-Impfungen_in_Deutschland/blob/master/Aktuell_Deutschland_Bundeslaender_COVID-19-Impfungen.csv?raw=true')
 #data_VOC = pd.read_csv('https://github.com/robert-koch-institut/SARS-CoV-2-Sequenzdaten_aus_Deutschland/raw/master/SARS-CoV-2-Sequenzdaten_Deutschland.csv.xz')
 
-#excel sheet from weekly updated overview statistics provided by RKI including hospitalization (target value):
+#excel sheet from weekly updated overview statistics provided by RKI including hospitalization (important value):
 
 r = requests.get('https://www.rki.de/DE/Content/InfAZ/N/Neuartiges_Coronavirus/Daten/Klinische_Aspekte.xlsx?__blob=publicationFile', headers={"User-Agent": "Chrome"})
 data_all = pd.read_excel(BytesIO(r.content),header=2)
@@ -81,7 +81,7 @@ data['Trend'] = trend   # add trend column to the dataframe
 ######################################### last column #####################################################
 
 # create target values: Lockdown calsses from 0 to 3
-# the dates are taken from https://de.wikipedia.org/wiki/COVID-19-Pandemie_in_Deutschland and categorized in 4 Lockdown-Strengths. Dates introduce the beginning of a new strength. 
+# the dates are taken from https://de.wikipedia.org/wiki/COVID-19-Pandemie_in_Deutschland and categorized in 4 Lockdown-Strengths. Dates indicate a change. 
 Lockdown = pd.DataFrame([
                    ('2020-03-02', '0'),
                    ('2020-03-08', '1'),
