@@ -46,10 +46,6 @@ data_RWert = data_RWert[['Datum', 'PS_COVID_Faelle', 'PS_7_Tage_R_Wert']]
 data_all = data_all[['Meldejahr', 'MW', 'Fälle gesamt', 'Mittelwert Alter (Jahre)', 'Männer', 'Anzahl hospitalisiert', 'Anzahl Verstorben']]
 
 
-
-
-
-
 # convert a week into a date (aim: inperpolate between the weekly data to get daily data)
 def process(df,year_key,week_key,day):
     dates = []
@@ -123,4 +119,3 @@ plt.plot(x,y)
 plt.plot(x,data['PS_COVID_Faelle'])
 plt.plot(x,data['Fälle gesamt']/7)
 #plt.show()
-
