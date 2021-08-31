@@ -10,6 +10,7 @@ from matplotlib import pyplot
 from numpy import mean
 from numpy import std
 
+
 # Model-Training:
 import time
 import datetime
@@ -43,6 +44,9 @@ import pickle
 
 data = pd.read_csv('data.csv').dropna()
 
+
+############################# define help functions ######################
+
 # evaluate a model
 def evaluate_model(X, y, model):
     # define evaluation procedure
@@ -52,9 +56,6 @@ def evaluate_model(X, y, model):
     #auroc = cross_val_score(model, X, y, scoring='roc_auc', cv=cv, n_jobs=-1)
     return scores#, auroc
  
-
-############################# define help functions ######################
-
 # define models to test
 def get_models():
     models, names = list(), list()
@@ -109,9 +110,9 @@ print('Base score: %.2f' % (base_score))
 
 y = LabelEncoder().fit_transform(y)
 
+# main part of the code: evaluate the models by RepeatedStratifiedKFol defined above in get_models() and evaluate()
 for i in range(len(models)):
     # start time measurement
-#for i in [0,1,2]:
     start_time = time.time()
     # define steps
     #ct = [('n',MinMaxScaler(),X.columns)]
@@ -135,6 +136,7 @@ for i in range(len(models)):
 
 ########################## get the best model and fit it #############################
 
+# find model
 summary=pd.DataFrame(summary, columns=['Models', 'Score'])      # Score and Model data in one df 
 best_model = summary.loc[np.argmax(summary['Score']),'Models']  # choose the model with highest acurracy
 print('Best Model: %s ' % (best_model))
