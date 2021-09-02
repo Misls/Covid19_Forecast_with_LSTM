@@ -1,4 +1,4 @@
-############################### preamble ##########################
+################## preamble ##################
 
 # data analysis
 import pandas as pd
@@ -21,7 +21,7 @@ from datetime import date
 from isoweek import Week
 
 
-############################# data aquisition #####################
+################## data aquisition ##################
 
 #data from RKI github repository:
 
@@ -32,21 +32,22 @@ data_RWert = pd.read_csv('https://raw.githubusercontent.com/robert-koch-institut
 #data_DIVI = pd.read_csv('https://diviexchange.blob.core.windows.net/%24web/zeitreihe-tagesdaten.csv') # Intensivbettenbelegung
 
 
-#excel sheet from weekly updated overview statistics provided by RKI including hospitalization (important value):
-
+# excel sheet from weekly updated overview statistics provided by RKI 
+# including hospitalization (important value):
 r = requests.get('https://www.rki.de/DE/Content/InfAZ/N/Neuartiges_Coronavirus/Daten/Klinische_Aspekte.xlsx?__blob=publicationFile', headers={"User-Agent": "Chrome"})
 data_all = pd.read_excel(BytesIO(r.content),header=2)
 
 
-############################# data preprocessing ####################
+################## data preprocessing ##################
 
 
 # filter for reasonable columns
-data_RWert = data_RWert[['Datum', 'PS_COVID_Faelle', 'PS_7_Tage_R_Wert']]
+data_RWert = data_RWert[['Datum', 'PS_7_Tage_R_Wert']]
 data_all = data_all[['Meldejahr', 'MW', 'Fälle gesamt', 'Mittelwert Alter (Jahre)', 'Männer', 'Anzahl hospitalisiert', 'Anzahl Verstorben']]
 
 
-# convert a week into a date (aim: inperpolate between the weekly data to get daily data)
+# convert a week into a date 
+# (aim: inperpolate between the weekly data to get daily data)
 def process(df,year_key,week_key,day):
     dates = []
     for i in range(len(data_all['MW'])):
@@ -61,10 +62,10 @@ def process(df,year_key,week_key,day):
 data_all['Datum'] = process(data_all,'Meldejahr','MW',3)
 
 # merge dataframes on 'Datum' and interpolate missing data in data_all
-data = pd.merge(data_RWert,data_all,how='outer',on=['Datum'])    # merge dataframes      # convert all date strings into datetime type
-data = data.interpolate(method= 'spline', order=2)      # interpolate missing data from weekly dataframes
-data.drop(data.loc[data['Fälle gesamt']<0].index,inplace=True)          # drop unrealistic case numbers from interpolation
-data.reset_index(drop=True, inplace=True)                               # reset index
+data = pd.merge(data_RWert,data_all,how='outer',on=['Datum'])   # merge dataframes      
+data = data.interpolate(method= 'spline', order=2)              # interpolate missing data from weekly dataframes
+data.drop(data.loc[data['Fälle gesamt']<0].index,inplace=True)  # drop unrealistic case numbers from interpolation
+data.reset_index(drop=True, inplace=True)
 
 
 
@@ -80,10 +81,11 @@ for i in range(len(data)):
 data['Trend'] = trend   # add trend column to the dataframe
 
 
-######################################### last column #####################################################
+################## last column ##################
 
 # create target values: Lockdown calsses from 0 to 3
-# the dates are taken from https://de.wikipedia.org/wiki/COVID-19-Pandemie_in_Deutschland and categorized in 4 Lockdown-Strengths. Dates indicate a change. 
+# the dates are from https://de.wikipedia.org/wiki/COVID-19-Pandemie_in_Deutschland 
+# and categorized in 4 classes. Dates indicate a change. 
 Lockdown = pd.DataFrame([
                    ('2020-03-02', '0'),
                    ('2020-03-08', '1'),
@@ -104,18 +106,23 @@ data['Lockdown-Strength'].fillna(method='ffill',inplace=True) # fill the missing
 data.dropna(inplace=True)
 
 
-############################## save dataframe to csv #####################################
+################## save dataframe to csv ##################
 
+#data_test = data[['Datum','PS_7_Tage_R_Wert', 'Lockdown-Strength']]
 data.to_csv('data.csv',index = False)
-############################ end of preprocessing #######################################
+################## end of preprocessing ##################
 
 
 #print(data_all.loc[data_all['Meldejahr'] == 2021, 'MW'])
-#x = data_all.loc[data_all['Meldejahr'] == 2021, 'MW']
-#y = data_all.loc[data_all['Meldejahr'] == 2021, 'Anzahl hospitalisiert']
+x = data_all.loc[data_all['Meldejahr'] == 2021, 'MW']
+y = data_all.loc[data_all['Meldejahr'] == 2021, 'Anzahl hospitalisiert']
 x = data['Datum']
 y = data['Anzahl hospitalisiert']
-plt.plot(x,y)
-plt.plot(x,data['PS_COVID_Faelle'])
 plt.plot(x,data['Fälle gesamt']/7)
-#plt.show()
+plt.plot(x,y)
+#plt.plot(x,data['PS_7_Tage_R_Wert'])
+plt.title("Covid-19 in Germany")
+plt.ylabel("Count")
+plt.xlabel('Time')
+plt.legend(['Daily Cases', 'Hospitalisation'])
+plt.savefig('Figures\Covid-Data.png')

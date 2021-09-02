@@ -1,6 +1,7 @@
-# Analysing different ML models and pick the best for Training 
+# Analysing different ML models 
+# and pick the best for Training 
 
-############################### preamble ##########################
+################## preamble##################
 
 # data analysis:
 import pandas as pd
@@ -40,11 +41,11 @@ from sklearn.model_selection import RepeatedStratifiedKFold
 import pickle
 
 
-############################# load dataframe ######################
+################## load dataframe ##################
 
 data = pd.read_csv('data.csv').dropna()
 
-############################# define help functions ######################
+################## define help functions ##################
 
 # evaluate a model
 def evaluate_model(X, y, model):
@@ -108,7 +109,8 @@ print('Base score: %.2f' % (base_score))
 
 y = LabelEncoder().fit_transform(y)
 
-# main part of the code: evaluate the models by RepeatedStratifiedKFol defined above in get_models() and evaluate()
+# main part of the code: evaluate the models by RepeatedStratifiedKFol 
+# defined above in get_models() and evaluate()
 for i in range(len(models)):
     # start time measurement
     start_time = time.time()
@@ -125,7 +127,7 @@ for i in range(len(models)):
      (names[i], mean(scores), std(scores), str(datetime.timedelta(seconds=elapsed_time))))
 
 
-########################## get the best model and fit it #############################
+############## get the best model and fit it ##############
 
 # find model
 summary=pd.DataFrame(summary, columns=['Models', 'Score'])      # Score and Model data in one df 
@@ -139,7 +141,59 @@ with open(Pkl_Filename, 'wb') as file:
     pickle.dump(model, file) 
 
 
-########################## end of training ################################
+################## end of training ##################
+
+
+# feature importance for RF from sklearn documentation
+# https://scikit-learn.org/stable/auto_examples/ensemble/plot_forest_importances.html
+
+feature_names = [f'{col}' for col in X.columns]
+forest = RandomForestClassifier(n_estimators=100)
+forest.fit(X, y)
+
+start_time = time.time()
+importances = forest.feature_importances_
+std = np.std([
+    tree.feature_importances_ for tree in forest.estimators_], axis=0)
+elapsed_time = time.time() - start_time
+
+print(f"Elapsed time to compute the importances: "
+      f"{elapsed_time:.3f} seconds")
+
+
+forest_importances = pd.Series(importances, index=feature_names)
+
+fig, ax = plt.subplots()
+forest_importances.plot.bar(yerr=std, ax=ax)
+ax.set_title("Feature importances using MDI")
+ax.set_ylabel("Mean decrease in impurity")
+fig.tight_layout()
+plt.savefig('Figures\Feature_Importance_MDI.png')
+#plt.show()
+
+####################################
+from sklearn.model_selection import train_test_split
+from sklearn.inspection import permutation_importance
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, stratify=y)
+
+start_time = time.time()
+result = permutation_importance(
+    forest, X_test, y_test, n_repeats=10, n_jobs=2)
+elapsed_time = time.time() - start_time
+print(f"Elapsed time to compute the importances: "
+      f"{elapsed_time:.3f} seconds")
+
+forest_importances = pd.Series(result.importances_mean, index=feature_names)
+
+fig, ax = plt.subplots()
+forest_importances.plot.bar(yerr=result.importances_std, ax=ax)
+ax.set_title("Feature importances using permutation on full model")
+ax.set_ylabel("Mean accuracy decrease")
+fig.tight_layout()
+plt.savefig('Figures\Feature_Importance_Permutation.png')
+#plt.show()
 
 
 # plot the results
