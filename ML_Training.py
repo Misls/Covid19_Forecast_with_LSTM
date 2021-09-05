@@ -182,10 +182,11 @@ start_time = time.time()
 result = permutation_importance(
     forest, X_test, y_test, n_repeats=10, n_jobs=2)
 elapsed_time = time.time() - start_time
-print(f"Elapsed time to compute the importances: "
+print(f"Elapsed time to compute the permutated importances: "
       f"{elapsed_time:.3f} seconds")
 
 forest_importances = pd.Series(result.importances_mean, index=feature_names)
+
 
 fig, ax = plt.subplots()
 forest_importances.plot.bar(yerr=result.importances_std, ax=ax)
@@ -197,8 +198,11 @@ plt.savefig('Figures\Feature_Importance_Permutation.png')
 
 
 # plot the results
+
+pyplot.subplots()
 pyplot.boxplot(results_accuracy, 
                labels=names, 
                showmeans=True)
 pyplot.title('Performance Analysis', fontweight='bold', fontsize=15)
+pyplot.savefig('Figures\Performance Analysis.png')
 #pyplot.show()

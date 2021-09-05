@@ -114,6 +114,7 @@ data.to_csv('data.csv',index = False)
 
 
 #print(data_all.loc[data_all['Meldejahr'] == 2021, 'MW'])
+
 x = data_all.loc[data_all['Meldejahr'] == 2021, 'MW']
 y = data_all.loc[data_all['Meldejahr'] == 2021, 'Anzahl hospitalisiert']
 x = data['Datum']
@@ -125,4 +126,13 @@ plt.title("Covid-19 in Germany")
 plt.ylabel("Count")
 plt.xlabel('Time')
 plt.legend(['Daily Cases', 'Hospitalisation'])
-plt.savefig('Figures\Covid-Data.png')
+plt.savefig('Figures\Covid-Data-Cases.png')
+
+plt.subplots()
+plt.plot(x,data['PS_7_Tage_R_Wert']*50)
+plt.plot(x,data['Mittelwert Alter (Jahre)'])
+plt.title("Covid-19 in Germany")
+plt.ylabel("Mean Age / R Value")
+plt.xlabel('Time')
+plt.legend(['R Value x 50','Mean Age'])
+plt.savefig('Figures\Covid-Data-Age-RValue.png')
