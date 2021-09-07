@@ -62,9 +62,11 @@ def process(df,year_key,week_key,day):
 data_all['Datum'] = process(data_all,'Meldejahr','MW',3)
 
 # merge dataframes on 'Datum' and interpolate missing data in data_all
-data = pd.merge(data_RWert,data_all,how='outer',on=['Datum'])   # merge dataframes      
-data = data.interpolate(method= 'spline', order=2)              # interpolate missing data from weekly dataframes
+data = pd.merge(data_RWert,data_all,how='outer',on=['Datum'])
+data[['Meldejahr','MW']] = data[['Meldejahr','MW']].fillna(method='ffill',axis=0)  # merge dataframes      
+data.interpolate(method = 'spline',order = 2, inplace=True)             # interpolate missing data from weekly dataframes
 data.drop(data.loc[data['Fälle gesamt']<0].index,inplace=True)  # drop unrealistic case numbers from interpolation
+data.drop(data.loc[data['Anzahl hospitalisiert']<0].index,inplace=True) # drop unrealistic case numbers from interpolation
 data.reset_index(drop=True, inplace=True)
 
 
@@ -136,3 +138,5 @@ plt.ylabel("Mean Age / R Value")
 plt.xlabel('Time')
 plt.legend(['R Value x 50','Mean Age'])
 plt.savefig('Figures\Covid-Data-Age-RValue.png')
+
+print(data)

@@ -194,11 +194,9 @@ ax.set_title("Feature importances using permutation on full model")
 ax.set_ylabel("Mean accuracy decrease")
 fig.tight_layout()
 plt.savefig('Figures\Feature_Importance_Permutation.png')
-#plt.show()
 
 
-# plot the results
-
+# plot the performances of the evaluated models
 pyplot.subplots()
 pyplot.boxplot(results_accuracy, 
                labels=names, 
