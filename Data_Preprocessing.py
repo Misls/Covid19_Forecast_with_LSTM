@@ -143,4 +143,3 @@ plt.xlabel('Time')
 plt.legend(['R Value x 50','Mean Age'])
 plt.savefig('Figures\Covid-Data-Age-RValue.png')
 
-print(data)
