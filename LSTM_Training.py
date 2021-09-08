@@ -6,7 +6,6 @@
 # data analysis:
 import numpy as np
 import pandas as pd
-#import seaborn as sns
 import matplotlib.pyplot as plt
 import time
 import datetime
@@ -29,7 +28,7 @@ import pickle
 dim = 1 # number of features in LSTM (dim >1 if more than 1 column is used for training)
 fut_pred = 90 # how many days should be predicted
 train_window = 365
-epochs = 5
+epochs = 150
 hidden_layers =100
 
 # define cumpuation device
@@ -174,6 +173,7 @@ for col in df.columns:
     x = np.arange(len(train_data), len(train_data)+fut_pred, 1)
     
     # save the forecast plot
+    plt.subplots()
     plt.title(col)
     plt.ylabel('Value')
     plt.xlabel('Days')

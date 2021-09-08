@@ -76,6 +76,11 @@ data.drop(data.loc[data['Cases']<0].index,inplace=True)  # drop unrealistic case
 data.drop(data.loc[data['Hospitalization']<0].index,inplace=True) # drop unrealistic case numbers from interpolation
 data.reset_index(drop=True, inplace=True)
 
+# correct data:
+data[['Cases','Hospitalization']] = data[['Cases','Hospitalization']]/7
+
+
+
 # reorder columns: time related columns to the left
 data = data[['Date',  'Year', 'Week','R-value', 'Cases', 'Age', 'Gender',
        'Hospitalization', 'Deaths']]
@@ -108,7 +113,9 @@ Lockdown = pd.DataFrame([
                    ('2021-03-03', '1'), 
                    ('2021-04-23', '2'),
                    ('2021-06-30', '1'),
-                   ('2021-07-23', '0')],       
+                   ('2021-07-23', '0'),
+                   ('2021-08-14', '1'),
+                   ('2021-09-03', '2')],        
            columns=('Date', 'Lockdown-Strength')
                  )
         
@@ -130,7 +137,7 @@ x = data_all.loc[data_all['Year'] == 2021, 'Week']
 y = data_all.loc[data_all['Year'] == 2021, 'Hospitalization']
 x = data['Date']
 y = data['Hospitalization']
-plt.plot(x,data['Cases']/7)
+plt.plot(x,data['Cases'])
 plt.plot(x,y)
 #plt.plot(x,data['PS_7_Tage_R_Wert'])
 plt.title("Covid-19 in Germany")

@@ -94,7 +94,7 @@ def get_models():
     return models, names
 
 # define features and target
-X, y = data.drop(['Datum','Lockdown-Strength'], axis=1), data['Lockdown-Strength']
+X, y = data.drop(['Date','Lockdown-Strength'], axis=1), data['Lockdown-Strength']
 
 
 
