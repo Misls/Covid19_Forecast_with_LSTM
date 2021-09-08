@@ -25,7 +25,9 @@ from isoweek import Week
 
 #data from RKI github repository:
 
-data_RWert = pd.read_csv('https://raw.githubusercontent.com/robert-koch-institut/SARS-CoV-2-Nowcasting_und_-R-Schaetzung/main/Nowcast_R_aktuell.csv')
+data_RWert = pd.read_csv(
+    'https://raw.githubusercontent.com/robert-koch-institut/SARS-CoV-2-Nowcasting_und_-R-Schaetzung/main/Nowcast_R_aktuell.csv'
+    )
 #data_infections = pd.read_csv('https://github.com/robert-koch-institut/SARS-CoV-2_Infektionen_in_Deutschland/blob/master/Aktuell_Deutschland_SarsCov2_Infektionen.csv?raw=true')
 #data_vaccinations = pd.read_csv('https://github.com/robert-koch-institut/COVID-19-Impfungen_in_Deutschland/blob/master/Aktuell_Deutschland_Bundeslaender_COVID-19-Impfungen.csv?raw=true')
 #data_VOC = pd.read_csv('https://github.com/robert-koch-institut/SARS-CoV-2-Sequenzdaten_aus_Deutschland/raw/master/SARS-CoV-2-Sequenzdaten_Deutschland.csv.xz')
@@ -34,7 +36,10 @@ data_RWert = pd.read_csv('https://raw.githubusercontent.com/robert-koch-institut
 
 # excel sheet from weekly updated overview statistics provided by RKI 
 # including hospitalization (important value):
-r = requests.get('https://www.rki.de/DE/Content/InfAZ/N/Neuartiges_Coronavirus/Daten/Klinische_Aspekte.xlsx?__blob=publicationFile', headers={"User-Agent": "Chrome"})
+r = requests.get(
+    'https://www.rki.de/DE/Content/InfAZ/N/Neuartiges_Coronavirus/Daten/Klinische_Aspekte.xlsx?__blob=publicationFile', 
+    headers={"User-Agent": "Chrome"}
+    )
 data_all = pd.read_excel(BytesIO(r.content),header=2)
 
 
@@ -142,4 +147,3 @@ plt.ylabel("Mean Age / R Value")
 plt.xlabel('Time')
 plt.legend(['R Value x 50','Mean Age'])
 plt.savefig('Figures\Covid-Data-Age-RValue.png')
-
