@@ -41,16 +41,18 @@ data_all = pd.read_excel(BytesIO(r.content),header=2)
 ################## data preprocessing ##################
 
 
-# filter for reasonable columns
-data_RWert = data_RWert[['Datum', 'PS_7_Tage_R_Wert']]
+# filter for reasonable columns and rename them
+data_RWert = data_RWert[['Datum', 'PS_7_Tage_R_Wert']].rename(columns={'Datum': 'Date', 'PS_7_Tage_R_Wert': 'R-value'})
 data_all = data_all[['Meldejahr', 'MW', 'Fälle gesamt', 'Mittelwert Alter (Jahre)', 'Männer', 'Anzahl hospitalisiert', 'Anzahl Verstorben']]
+data_all.rename(columns={'Meldejahr':'Year', 'MW':'Week', 'Fälle gesamt':'Cases', 'Mittelwert Alter (Jahre)':'Age',
+         'Männer':'Gender', 'Anzahl hospitalisiert':'Hospitalization', 'Anzahl Verstorben':'Deaths'},inplace=True)
 
 
 # convert a week into a date 
 # (aim: inperpolate between the weekly data to get daily data)
 def process(df,year_key,week_key,day):
     dates = []
-    for i in range(len(data_all['MW'])):
+    for i in range(len(data_all['Week'])):
         date = Week(
             int(df.loc[i, year_key]),           # year values
             int(df.loc[i, week_key])            # week values
@@ -59,14 +61,14 @@ def process(df,year_key,week_key,day):
     return np.reshape(dates, (1, len(dates))).T # vector of dates
 
 # insert date values in current dataframe
-data_all['Datum'] = process(data_all,'Meldejahr','MW',3)
+data_all['Date'] = process(data_all,'Year','Week',3)
 
-# merge dataframes on 'Datum' and interpolate missing data in data_all
-data = pd.merge(data_RWert,data_all,how='outer',on=['Datum'])
-data[['Meldejahr','MW']] = data[['Meldejahr','MW']].fillna(method='ffill',axis=0)  # merge dataframes      
+# merge dataframes on 'Date' and interpolate missing data in data_all
+data = pd.merge(data_RWert,data_all,how='outer',on=['Date'])
+data[['Year','Week']] = data[['Year','Week']].fillna(method='ffill',axis=0)  # merge dataframes      
 data.interpolate(method = 'spline',order = 2, inplace=True)             # interpolate missing data from weekly dataframes
-data.drop(data.loc[data['Fälle gesamt']<0].index,inplace=True)  # drop unrealistic case numbers from interpolation
-data.drop(data.loc[data['Anzahl hospitalisiert']<0].index,inplace=True) # drop unrealistic case numbers from interpolation
+data.drop(data.loc[data['Cases']<0].index,inplace=True)  # drop unrealistic case numbers from interpolation
+data.drop(data.loc[data['Hospitalization']<0].index,inplace=True) # drop unrealistic case numbers from interpolation
 data.reset_index(drop=True, inplace=True)
 
 
@@ -75,12 +77,12 @@ data.reset_index(drop=True, inplace=True)
 trend = np.ones((len(data),1)).astype(int)
 for i in range(len(data)):
     if i == 0:
-        if data.loc[i,'Fälle gesamt']>data.loc[i+1,'Fälle gesamt']:
+        if data.loc[i,'Cases']>data.loc[i+1,'Cases']:
             trend[i]=0
     else:
-        if data.loc[i,'Fälle gesamt']<data.loc[i-1,'Fälle gesamt']:
+        if data.loc[i,'Cases']<data.loc[i-1,'Cases']:
             trend[i]=0
-data['Trend'] = trend   # add trend column to the dataframe
+#data['Trend'] = trend   # add trend column to the dataframe
 
 
 ################## last column ##################
@@ -100,39 +102,39 @@ Lockdown = pd.DataFrame([
                    ('2021-04-23', '2'),
                    ('2021-06-30', '1'),
                    ('2021-07-23', '0')],       
-           columns=('Datum', 'Lockdown-Strength')
+           columns=('Date', 'Lockdown-Strength')
                  )
         
-data = pd.merge(data,Lockdown,how='outer',on=['Datum'])       # merge dataframes
+data = pd.merge(data,Lockdown,how='outer',on=['Date'])       # merge dataframes
 data['Lockdown-Strength'].fillna(method='ffill',inplace=True) # fill the missing data by using preceding values 
 data.dropna(inplace=True)
 
 
 ################## save dataframe to csv ##################
 
-#data_test = data[['Datum','PS_7_Tage_R_Wert', 'Lockdown-Strength']]
+
 data.to_csv('data.csv',index = False)
 ################## end of preprocessing ##################
 
 
 #print(data_all.loc[data_all['Meldejahr'] == 2021, 'MW'])
 
-x = data_all.loc[data_all['Meldejahr'] == 2021, 'MW']
-y = data_all.loc[data_all['Meldejahr'] == 2021, 'Anzahl hospitalisiert']
-x = data['Datum']
-y = data['Anzahl hospitalisiert']
-plt.plot(x,data['Fälle gesamt']/7)
+x = data_all.loc[data_all['Year'] == 2021, 'Week']
+y = data_all.loc[data_all['Year'] == 2021, 'Hospitalization']
+x = data['Date']
+y = data['Hospitalization']
+plt.plot(x,data['Cases']/7)
 plt.plot(x,y)
 #plt.plot(x,data['PS_7_Tage_R_Wert'])
 plt.title("Covid-19 in Germany")
 plt.ylabel("Count")
 plt.xlabel('Time')
-plt.legend(['Daily Cases', 'Hospitalisation'])
+plt.legend(['Daily Cases', 'Hospitalization'])
 plt.savefig('Figures\Covid-Data-Cases.png')
 
 plt.subplots()
-plt.plot(x,data['PS_7_Tage_R_Wert']*50)
-plt.plot(x,data['Mittelwert Alter (Jahre)'])
+plt.plot(x,data['R-value']*50)
+plt.plot(x,data['Age'])
 plt.title("Covid-19 in Germany")
 plt.ylabel("Mean Age / R Value")
 plt.xlabel('Time')
