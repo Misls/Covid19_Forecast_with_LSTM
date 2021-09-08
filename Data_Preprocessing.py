@@ -71,7 +71,9 @@ data.drop(data.loc[data['Cases']<0].index,inplace=True)  # drop unrealistic case
 data.drop(data.loc[data['Hospitalization']<0].index,inplace=True) # drop unrealistic case numbers from interpolation
 data.reset_index(drop=True, inplace=True)
 
-
+# reorder columns: time related columns to the left
+data = data[['Date',  'Year', 'Week','R-value', 'Cases', 'Age', 'Gender',
+       'Hospitalization', 'Deaths']]
 
 # create a column for the prevailing trend: 0 = decreasing and 1 = increasing
 trend = np.ones((len(data),1)).astype(int)
