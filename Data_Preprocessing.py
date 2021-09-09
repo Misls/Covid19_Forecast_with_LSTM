@@ -4,6 +4,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 # ignore warning messages
 import warnings
@@ -33,6 +34,7 @@ data_RWert = pd.read_csv(
 #data_VOC = pd.read_csv('https://github.com/robert-koch-institut/SARS-CoV-2-Sequenzdaten_aus_Deutschland/raw/master/SARS-CoV-2-Sequenzdaten_Deutschland.csv.xz')
 #data_DIVI = pd.read_csv('https://diviexchange.blob.core.windows.net/%24web/zeitreihe-tagesdaten.csv') # Intensivbettenbelegung
 
+#print(data_VOC)
 
 # excel sheet from weekly updated overview statistics provided by RKI 
 # including hospitalization (important value):
@@ -132,25 +134,31 @@ data.to_csv('data.csv',index = False)
 
 
 #print(data_all.loc[data_all['Meldejahr'] == 2021, 'MW'])
+index = pd.to_datetime(data['Date'])
 
-x = data_all.loc[data_all['Year'] == 2021, 'Week']
-y = data_all.loc[data_all['Year'] == 2021, 'Hospitalization']
-x = data['Date']
-y = data['Hospitalization']
-plt.plot(x,data['Cases'])
-plt.plot(x,y)
-#plt.plot(x,data['PS_7_Tage_R_Wert'])
+plt.subplots()
+plt.plot(index, data['Cases'])
+plt.plot(index, data['Hospitalization']*10)
 plt.title("Covid-19 in Germany")
 plt.ylabel("Count")
 plt.xlabel('Time')
-plt.legend(['Daily Cases', 'Hospitalization'])
+plt.legend(['Daily Cases', 'Hospitalization x 10'])
+ax = plt.gca()
+ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
+plt.gcf().autofmt_xdate() # Rotation
 plt.savefig('Figures\Covid-Data-Cases.png')
 
+
 plt.subplots()
-plt.plot(x,data['R-value']*50)
-plt.plot(x,data['Age'])
+plt.plot(index, data['R-value']*50)
+plt.plot(index, data['Age'])
 plt.title("Covid-19 in Germany")
 plt.ylabel("Mean Age / R Value")
 plt.xlabel('Time')
 plt.legend(['R Value x 50','Mean Age'])
+ax = plt.gca()
+ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
+plt.gcf().autofmt_xdate() # Rotation
 plt.savefig('Figures\Covid-Data-Age-RValue.png')

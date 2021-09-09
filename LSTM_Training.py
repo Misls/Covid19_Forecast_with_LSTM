@@ -27,9 +27,9 @@ import pickle
 # parameters:
 dim = 1 # number of features in LSTM (dim >1 if more than 1 column is used for training)
 fut_pred = 90 # how many days should be predicted
-train_window = 365
-epochs = 150
-hidden_layers =100
+train_window = 90
+epochs = 250
+hidden_layers =50
 
 # define cumpuation device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -68,11 +68,14 @@ class LSTM(nn.Module):
         
         self.hidden_cell_2 = (torch.zeros(1,1,self.input_size),
                             torch.zeros(1,1,self.input_size))
-        
+        #self.sigmoid = nn.Sigmoid()
+        #self.softmax = nn.Softmax()
+
     def forward(self, input_seq):
         inpt = input_seq.view(len(input_seq) ,1, -1)
         lstm_out, self.hidden_cell = self.lstm(inpt, self.hidden_cell)
         lstm_out2, self.hidden_cell_2 = self.lstm2(lstm_out,self.hidden_cell_2)
+        #predictions = self.linear(lstm_out2.view(len(input_seq), -1))
         predictions = lstm_out2.view(len(input_seq), -1)
         return predictions[-1]
 
