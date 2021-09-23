@@ -38,4 +38,3 @@ ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
 plt.gcf().autofmt_xdate() # Rotation
 plt.savefig('Figures\Lockdown_Probability.png')
-plt.show()

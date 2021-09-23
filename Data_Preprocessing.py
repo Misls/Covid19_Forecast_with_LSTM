@@ -31,10 +31,15 @@ data_RWert = pd.read_csv(
     )
 #data_infections = pd.read_csv('https://github.com/robert-koch-institut/SARS-CoV-2_Infektionen_in_Deutschland/blob/master/Aktuell_Deutschland_SarsCov2_Infektionen.csv?raw=true')
 #data_vaccinations = pd.read_csv('https://github.com/robert-koch-institut/COVID-19-Impfungen_in_Deutschland/blob/master/Aktuell_Deutschland_Bundeslaender_COVID-19-Impfungen.csv?raw=true')
+r = requests.get(
+    'https://www.rki.de/DE/Content/InfAZ/N/Neuartiges_Coronavirus/Daten/Impfquotenmonitoring.xlsx?__blob=publicationFile', 
+    headers={"User-Agent": "Chrome"}
+    )
+data_vaccinations = pd.read_excel(BytesIO(r.content),header=0,sheet_name = 'Impfungen_proTag')
+data_vaccinations.dropna(inplace=True)
+data_vaccinations.drop(len(data_vaccinations)-1, axis = 0, inplace = True)
 #data_VOC = pd.read_csv('https://github.com/robert-koch-institut/SARS-CoV-2-Sequenzdaten_aus_Deutschland/raw/master/SARS-CoV-2-Sequenzdaten_Deutschland.csv.xz')
 #data_DIVI = pd.read_csv('https://diviexchange.blob.core.windows.net/%24web/zeitreihe-tagesdaten.csv') # Intensivbettenbelegung
-
-#print(data_VOC)
 
 # excel sheet from weekly updated overview statistics provided by RKI 
 # including hospitalization (important value):
@@ -42,7 +47,7 @@ r = requests.get(
     'https://www.rki.de/DE/Content/InfAZ/N/Neuartiges_Coronavirus/Daten/Klinische_Aspekte.xlsx?__blob=publicationFile', 
     headers={"User-Agent": "Chrome"}
     )
-data_all = pd.read_excel(BytesIO(r.content),header=2)
+data_all = pd.read_excel(BytesIO(r.content),header=3)
 
 
 ################## data preprocessing ##################
@@ -52,7 +57,12 @@ data_all = pd.read_excel(BytesIO(r.content),header=2)
 data_RWert = data_RWert[['Datum', 'PS_7_Tage_R_Wert']].rename(columns={'Datum': 'Date', 'PS_7_Tage_R_Wert': 'R-value'})
 data_all = data_all[['Meldejahr', 'MW', 'Fälle gesamt', 'Mittelwert Alter (Jahre)', 'Männer', 'Anzahl hospitalisiert', 'Anzahl Verstorben']]
 data_all.rename(columns={'Meldejahr':'Year', 'MW':'Week', 'Fälle gesamt':'Cases', 'Mittelwert Alter (Jahre)':'Age',
-         'Männer':'Gender', 'Anzahl hospitalisiert':'Hospitalization', 'Anzahl Verstorben':'Deaths'},inplace=True)
+         'Männer':'Gender', 'Anzahl hospitalisiert':'Hospitalization', 'Anzahl Verstorben':'Deaths'},inplace=True)        
+data_all['Year'].replace(2022, 2021, inplace = True)
+data_vaccinations = data_vaccinations[['Datum', 'Erstimpfung', 'Zweitimpfung']].rename(
+    columns={'Datum': 'Date', 'Erstimpfung': '1rst_Vac', 'Zweitimpfung' : '2nd_Vac'})
+
+
 
 
 # convert a week into a date 
@@ -70,22 +80,28 @@ def process(df,year_key,week_key,day):
 # insert date values in current dataframe
 data_all['Date'] = process(data_all,'Year','Week',3)
 
-# merge dataframes on 'Date' and interpolate missing data in data_all
+data_all['Date'] = pd.to_datetime(data_all['Date'])
+data_RWert['Date'] = pd.to_datetime(data_RWert['Date'])
+data_vaccinations['Date'] = pd.to_datetime(data_vaccinations['Date'],format='%d.%m.%Y')
+
+# merge dataframes on 'Date'
 data = pd.merge(data_RWert,data_all,how='outer',on=['Date'])
-data[['Year','Week']] = data[['Year','Week']].fillna(method='ffill',axis=0)  # merge dataframes      
-data.interpolate(method = 'spline',order = 2, inplace=True)             # interpolate missing data from weekly dataframes
+data = pd.merge(data,data_vaccinations,how='outer',on=['Date'])
+#  fill and interpolate missing data in data_all
+data[['Year','Week']] = data[['Year','Week']].fillna(method='ffill',axis=0)  # fill missing week and year numbers
+data[['1rst_Vac', '2nd_Vac']] = data[['1rst_Vac', '2nd_Vac']].fillna(value = 0, axis=0).cumsum()  # fill missing vaccination numbers with zero
+data[data.columns[1:]] = data[data.columns[1:]].interpolate(method = 'spline',order = 2, axis = 0)  # interpolate missing data from weekly dataframes
 data.drop(data.loc[data['Cases']<0].index,inplace=True)  # drop unrealistic case numbers from interpolation
 data.drop(data.loc[data['Hospitalization']<0].index,inplace=True) # drop unrealistic case numbers from interpolation
+data.drop(data.loc[data['R-value']>1.6].index,inplace=True) # drop unrealistic R-Values from first days calculations
 data.reset_index(drop=True, inplace=True)
 
 # correct data:
 data[['Cases','Hospitalization']] = data[['Cases','Hospitalization']]/7
 
-
-
 # reorder columns: time related columns to the left
-data = data[['Date',  'Year', 'Week','R-value', 'Cases', 'Age', 'Gender',
-       'Hospitalization', 'Deaths']]
+data = data[['Date',  'Year', 'Week', 'Cases','Age','R-value','Hospitalization', 'Deaths', 'Gender','1rst_Vac', '2nd_Vac'
+       ]]
 
 # create a column for the prevailing trend: 0 = decreasing and 1 = increasing
 trend = np.ones((len(data),1)).astype(int)
@@ -98,8 +114,7 @@ for i in range(len(data)):
             trend[i]=0
 #data['Trend'] = trend   # add trend column to the dataframe
 
-
-################## last column ##################
+################## target column ##################
 
 # create target values: Lockdown calsses from 0 to 3
 # the dates are from https://de.wikipedia.org/wiki/COVID-19-Pandemie_in_Deutschland 
@@ -120,11 +135,10 @@ Lockdown = pd.DataFrame([
                    ('2021-09-03', '2')],        
            columns=('Date', 'Lockdown-Strength')
                  )
-        
+Lockdown['Date'] = pd.to_datetime(Lockdown['Date'])   
 data = pd.merge(data,Lockdown,how='outer',on=['Date'])       # merge dataframes
 data['Lockdown-Strength'].fillna(method='ffill',inplace=True) # fill the missing data by using preceding values 
 data.dropna(inplace=True)
-
 
 ################## save dataframe to csv ##################
 
@@ -132,8 +146,6 @@ data.dropna(inplace=True)
 data.to_csv('data.csv',index = False)
 ################## end of preprocessing ##################
 
-
-#print(data_all.loc[data_all['Meldejahr'] == 2021, 'MW'])
 index = pd.to_datetime(data['Date'])
 
 plt.subplots()
@@ -162,3 +174,16 @@ ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
 plt.gcf().autofmt_xdate() # Rotation
 plt.savefig('Figures\Covid-Data-Age-RValue.png')
+
+plt.subplots()
+plt.plot(index, data['1rst_Vac'])
+plt.plot(index, data['2nd_Vac'])
+plt.title("Covid-19 in Germany")
+plt.ylabel("Vaccinations")
+plt.xlabel('Time')
+plt.legend(['1rst Vaccination','2nd Vaccination'])
+ax = plt.gca()
+ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
+plt.gcf().autofmt_xdate() # Rotation
+plt.savefig('Figures\Covid-Data-Vaccinations.png')
