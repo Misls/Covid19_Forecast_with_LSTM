@@ -28,18 +28,18 @@ import matplotlib.dates as mdates
 
 # parameters:
 dim = 1 # number of features in LSTM (dim >1 if more than 1 column is used for training)
-fut_pred = 180 # how many days should be predicted
-train_window = 60
+fut_pred = 90 # how many days should be predicted
+train_window = 90
 epochs = 500
 hidden_layers =250
 hidden_layers_1 =250
 #hidden_layers_2 = 1
-drop = 0.1
+drop = 0.2
 drop_1 = 0
-num_layers = 2
+num_layers = 3
 num_layers_1 = 1
 #num_layers_2 = 1
-lr = 0.00001
+lr = 0.0001
 batch_size = 1
 
 # define cumpuation device
@@ -204,7 +204,7 @@ for col in df.columns:
 
     test_inputs = train_data_normalized[-train_window:].tolist()
     # load best epoch
-    best_epoch = max(saved_epochs)
+    #best_epoch = max(saved_epochs)
     #Pkl_Filename = Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl' 
     #with open(Pkl_Filename, 'rb') as file:  
         #model = pickle.load(file)
