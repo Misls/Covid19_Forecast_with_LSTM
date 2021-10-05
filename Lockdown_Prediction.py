@@ -1,4 +1,4 @@
-# predict Lockdown-Strength depending on trained Lockdown-Classifier and forecast by LSTM
+# predict Lockdown-Intensity depending on trained Lockdown-Classifier and forecast by LSTM
 
 ################## preamble##################
 
@@ -10,6 +10,7 @@ from matplotlib import pyplot
 import matplotlib.dates as mdates
 from numpy import mean
 from numpy import std
+from sklearn.preprocessing import MinMaxScaler
 
 # load model
 import pickle
@@ -22,6 +23,7 @@ with open(Pkl_Filename, 'rb') as file:
 df = pd.read_csv('data_pred.csv')
 dates = df['Date']
 X = df.drop(['Date'],axis=1)
+X = MinMaxScaler().fit_transform(X)
 
 y_pred = Pickled_Model.predict_proba(X)
 
@@ -37,4 +39,4 @@ ax = plt.gca()
 ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
 plt.gcf().autofmt_xdate() # Rotation
-plt.savefig('Figures\Lockdown_Probability.png')
+plt.savefig('Figures\Prediction_Graphs\Lockdown_Probability.png')

@@ -29,7 +29,7 @@ import matplotlib.dates as mdates
 # parameters:
 dim = 1 # number of features in LSTM (dim >1 if more than 1 column is used for training)
 fut_pred = 90 # how many days should be predicted
-train_window = 90
+train_window = 30
 epochs = 500
 hidden_layers =250
 hidden_layers_1 =250
@@ -48,7 +48,7 @@ print('This Computation is running on {}'.format(device))
 
 # load dataframe
 data = pd.read_csv('data.csv')
-#data = data[['Date', 'Year','Week','Cases','Lockdown-Strength']]
+#data = data[['Date', 'Year','Week','Cases','Lockdown-Intensity']]
 # help function 
 def create_inout_sequences(input_data, tw):
     inout_seq = []
@@ -128,10 +128,12 @@ for x in range (0, fut_pred):
 pred_dates = pd.to_datetime(dateList)
 pred_dates = np.array(pred_dates)
 df_pred = pd.DataFrame(data=pred_dates, columns = ['Date'])
-df_pred['Year'] = df_pred['Date'].dt.year
-df_pred['Week'] = df_pred['Date'].dt.isocalendar().week
+#df_pred['Year'] = df_pred['Date'].dt.year
+#df_pred['Week'] = df_pred['Date'].dt.isocalendar().week
 # drop unimportant features for the training:
-df = data.drop(['Date','Year', 'Week','Lockdown-Strength'],axis=1)
+df = data.drop(['Date',
+                #'Year','Week',
+                'Lockdown-Intensity'],axis=1)
 
 #########################################################
 ################## start training loop ##################
@@ -198,7 +200,7 @@ for col in df.columns:
     plt.xlabel('Epoch')
     plt.grid(True)
     plt.plot(loss_summary)
-    plt.savefig('Figures\Prediction-loss-'+col+'.png')
+    plt.savefig('Figures\LSTM_Training_Loss\Prediction-loss-'+col+'.png')
     
 ################## predict data ##################
 
@@ -238,7 +240,7 @@ for col in df.columns:
     ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
     plt.gcf().autofmt_xdate() # Rotation
-    plt.savefig('Figures\Prediction-'+col+'.png')
+    plt.savefig('Figures\Prediction_Graphs\Prediction-'+col+'.png')
    
     elapsed_time = float("{:.0f}".format(time.time() - start_time))
     print('elapsed time for feature training: %s' % (str(datetime.timedelta(seconds=elapsed_time))))

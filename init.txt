@@ -1,4 +1,10 @@
+## In order to create new graphs and apply the model run the following code: 
+
 python -m venv .venv
 Set-ExecutionPolicy Unrestricted -Scope Process
 .venv\Scripts\Activate.ps1
 pip install –r requirements.txt
+python .\Data_Preprocessing.py
+python .\ML_Training.py
+python .\LSTM_Training.py
+python .\Lockdown_Prediction

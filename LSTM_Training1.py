@@ -42,7 +42,7 @@ print('This Computation is running on {}'.format(device))
 
 # load dataframe
 data = pd.read_csv('data.csv')
-#data = data[['Date', 'Year','Week','Cases','Lockdown-Strength']]
+#data = data[['Date', 'Year','Week','Cases','Lockdown-Intensity']]
 # help function 
 def create_inout_sequences(input_data, tw):
     inout_seq = []
@@ -114,7 +114,7 @@ df_pred = pd.DataFrame(data=pred_dates, columns = ['Date'])
 df_pred['Year'] = df_pred['Date'].dt.year
 df_pred['Week'] = df_pred['Date'].dt.isocalendar().week
 # drop unimportant features for the training:
-df = data.drop(['Date','Year', 'Week','Lockdown-Strength'],axis=1)
+df = data.drop(['Date','Year', 'Week','Lockdown-Intensity'],axis=1)
 
 #########################################################
 ################## start training loop ##################

@@ -40,7 +40,7 @@ data_vaccinations = pd.read_excel(BytesIO(r.content),header=0,sheet_name = 'Impf
 data_vaccinations.dropna(inplace=True)
 data_vaccinations.drop(len(data_vaccinations)-1, axis = 0, inplace = True)
 #data_VOC = pd.read_csv('https://github.com/robert-koch-institut/SARS-CoV-2-Sequenzdaten_aus_Deutschland/raw/master/SARS-CoV-2-Sequenzdaten_Deutschland.csv.xz')
-data_DIVI = pd.read_csv('https://diviexchange.blob.core.windows.net/%24web/zeitreihe-tagesdaten.csv') # Intensivbettenbelegung
+data_DIVI = pd.read_csv('https://diviexchange.blob.core.windows.net/%24web/bundesland-zeitreihe.csv') # Intensivbettenbelegung
 
 # excel sheet from weekly updated overview statistics provided by RKI 
 # including hospitalization:
@@ -62,7 +62,7 @@ data_all.rename(columns={'Meldejahr':'Year', 'MW':'Week', 'Fälle gesamt':'Cases
 data_all['Year'].replace(2022, 2021, inplace = True)
 data_vaccinations = data_vaccinations[['Datum', 'Erstimpfung', 'Zweitimpfung']].rename(
     columns={'Datum': 'Date', 'Erstimpfung': '1rst_Vac', 'Zweitimpfung' : '2nd_Vac'})
-data_DIVI = data_DIVI[['date','faelle_covid_aktuell']].rename(columns={'date':'Date', 'faelle_covid_aktuell':'Intensive_Care'})
+data_DIVI = data_DIVI[['Datum','Aktuelle_COVID_Faelle_Erwachsene_ITS']].rename(columns={'Datum':'Date', 'Aktuelle_COVID_Faelle_Erwachsene_ITS':'Intensive_Care'})
 data_infections = data_infections[['Refdatum','AnzahlFall']].rename(columns = {'Refdatum':'Date','AnzahlFall':'Cases'})
 
 
@@ -87,6 +87,11 @@ data_all['Date'] = process(data_all,'Year','Week',3)
 data_all['Date'] = pd.to_datetime(data_all['Date'])
 data_RWert['Date'] = pd.to_datetime(data_RWert['Date'])
 data_vaccinations['Date'] = pd.to_datetime(data_vaccinations['Date'],format='%d.%m.%Y')
+# get rid of the ugly utc datetime format from DIVI to set it to a datetime:
+new_dates = list()
+for i in range(len(data_DIVI)):
+    new_dates.append(data_DIVI['Date'][i][0:10])
+data_DIVI['Date'] = pd.DataFrame(new_dates)
 data_DIVI['Date'] = pd.to_datetime(data_DIVI['Date'],format='%Y-%m-%d')
 data_infections['Date'] = pd.to_datetime(data_infections['Date'],format='%Y-%m-%d')
 
@@ -94,13 +99,14 @@ data_infections['Date'] = pd.to_datetime(data_infections['Date'],format='%Y-%m-%
 data_DIVI_sort = pd.DataFrame(index=data_DIVI['Date'].unique(), columns=['Intensive_Care']).rename_axis('Date')
 for day in data_DIVI['Date'].unique():
     data_DIVI_sort['Intensive_Care'][day]=data_DIVI[(data_DIVI['Intensive_Care']> -1)&(data_DIVI['Date']==day)]['Intensive_Care'].sum()
-#data_DIVI_sort['Date'] = data_DIVI['Date'].unique()
+
 
 # sort infection data
 data_infections_sort = pd.DataFrame(index=data_infections['Date'].unique(), columns=['Cases2']).rename_axis('Date').sort_index()
 for day in data_infections['Date'].unique():
     data_infections_sort['Cases2'][day]=data_infections[(data_infections['Date']==day)]['Cases'].sum()
 data_infections_sort['Date'] = data_infections_sort.index
+
 
 # 7 day incidince per 100.000:
 incidince = list()
@@ -113,30 +119,32 @@ for i in range(len(data_infections_sort)+1):
         incidince.append(inc)
 data_infections_sort.reset_index(drop=True, inplace=True)
 data_infections_sort['Incidince'] = pd.DataFrame(incidince)
-print(data_infections_sort)
+
 
 ###################### merge dataframes on 'Date' ############################
 data = pd.merge(data_RWert,data_all,how='outer',on=['Date'])
 data = pd.merge(data,data_vaccinations,how='outer',on=['Date'])
 data = pd.merge(data,data_DIVI_sort,how='outer',on=['Date'])
 data = pd.merge(data,data_infections_sort,how='outer',on=['Date'])
-#print(data)
+
+data.set_index('Date', inplace = True) # sort_values didn't work, so here we go with sort_index
+data.rename_axis('Date_index', inplace = True)
+data.sort_index(inplace = True)
+
 #  fill and interpolate missing data in data_all
 data[['Year','Week']] = data[['Year','Week']].fillna(method='ffill',axis=0)  # fill missing week and year numbers
 data[['1rst_Vac', '2nd_Vac']] = data[['1rst_Vac', '2nd_Vac']].fillna(value = 0, axis=0).cumsum()  # fill missing vaccination numbers with zero
-data[data.columns[1:]] = data[data.columns[1:]].interpolate(method = 'spline',order = 3, axis = 0)  # interpolate missing data from weekly dataframes
+data[data.columns[0:-1]] = data[data.columns[0:-1]].interpolate(method = 'spline',order = 3, axis = 0)  # interpolate missing data from weekly dataframes
 data.drop(data.loc[data['Cases']<0].index,inplace=True)  # drop unrealistic case numbers from interpolation
+data[['Intensive_Care']]=data[['Intensive_Care']].fillna(0)
 data.drop(data.loc[data['Hospitalization']<0].index,inplace=True) # drop unrealistic case numbers from interpolation
 data.drop(data.loc[data['R-value']>1.6].index,inplace=True) # drop unrealistic R-Values from first days calculations
+data['Date'] = data.index # restore Data column
 data.reset_index(drop=True, inplace=True)
-
 # correct data:
 data[['Cases','Hospitalization']] = data[['Cases','Hospitalization']]/7
 
-# reorder columns: time related columns to the left
-data = data[['Date',  'Year', 'Week', 'Cases','Age','R-value','Hospitalization', 
-'Deaths', 'Gender','1rst_Vac', '2nd_Vac','Intensive_Care', 'Cases2', 'Incidince'
-       ]]
+
 
 # create a column for the prevailing trend: 0 = decreasing and 1 = increasing
 trend = np.ones((len(data),1)).astype(int)
@@ -155,7 +163,7 @@ for i in range(len(data)):
 # the dates are from https://de.wikipedia.org/wiki/COVID-19-Pandemie_in_Deutschland 
 # and categorized in 4 classes. Dates indicate a change. 
 Lockdown = pd.DataFrame([
-                    ('2020-03-02', '0'),
+                    ('2020-01-01', '0'),
                     ('2020-03-08', '1'),
                     ('2020-03-17', '2'),
                     ('2020-03-22', '3'),
@@ -169,34 +177,55 @@ Lockdown = pd.DataFrame([
                     ('2021-08-14', '1'),
                     ('2021-09-10', '2'),
                     ('2021-10-01', '1')],       
-           columns=('Date', 'Lockdown-Strength')
+           columns=('Date', 'Lockdown-Intensity')
                  )
 Lockdown['Date'] = pd.to_datetime(Lockdown['Date'])   
 data = pd.merge(data,Lockdown,how='outer',on=['Date'])       # merge dataframes
-data['Lockdown-Strength'].fillna(method='ffill',inplace=True) # fill the missing data by using preceding values 
+data['Lockdown-Intensity'].fillna(method='ffill',inplace=True) # fill the missing data by using preceding values 
+data['Date'] = pd.to_datetime(data['Date'])
+
 data.dropna(inplace=True)
+data.reset_index(drop=True, inplace=True)
+data.drop(list(range(len(data)-3,len(data))), inplace = True) # drop the last days because RKI data are delayed for about 3 days
+
+
+
+
+# select relevant columns:
+data_final = data[[
+    'Date',
+    'Age',
+    'R-value', 
+    #'Incidince',
+    'Intensive_Care', 
+    #'Gender',
+    'Deaths',
+    #'1rst_Vac', 
+    '2nd_Vac', 
+    'Lockdown-Intensity'
+       ]]
 
 ################## save dataframe to csv ##################
 
 
-data.to_csv('data.csv',index = False)
+data_final.to_csv('data.csv',index = False)
 ################## end of preprocessing ##################
 
 index = pd.to_datetime(data['Date'])
 
 plt.subplots()
 plt.plot(index, data['Cases2'])
-plt.plot(index, data['Incidince']*10)
+plt.plot(index, data['Incidince']*100)
 plt.plot(index, data['Intensive_Care'])
 plt.title("Covid-19 in Germany")
 plt.ylabel("Cases")
 plt.xlabel('Time')
-plt.legend(['Daily Cases', '7 Day Incidinces x10', 'Intensive_Care'])
+plt.legend(['Daily Cases', '7 Day Incidinces x 100', 'Intensive_Care'])
 ax = plt.gca()
 ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
 plt.gcf().autofmt_xdate() # Rotation
-plt.savefig('Figures\Covid-Data-Cases.png')
+plt.savefig('Figures\Data_Graphs\Covid-Data-Cases.png')
 
 
 plt.subplots()
@@ -210,7 +239,7 @@ ax = plt.gca()
 ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
 plt.gcf().autofmt_xdate() # Rotation
-plt.savefig('Figures\Covid-Data-Age-RValue.png')
+plt.savefig('Figures\Data_Graphs\Covid-Data-Age-RValue.png')
 
 plt.subplots()
 plt.plot(index, data['1rst_Vac'])
@@ -223,6 +252,4 @@ ax = plt.gca()
 ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
 plt.gcf().autofmt_xdate() # Rotation
-plt.savefig('Figures\Covid-Data-Vaccinations.png')
-
-print(data)
+plt.savefig('Figures\Data_Graphs\Covid-Data-Vaccinations.png')
