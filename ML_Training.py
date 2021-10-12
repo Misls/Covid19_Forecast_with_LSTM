@@ -122,7 +122,7 @@ base_score = y.value_counts().max()/len(y)
 print('Base score: %.2f' % (base_score))
 
 y = LabelEncoder().fit_transform(y)
-X = MinMaxScaler().fit_transform(X)
+X = MinMaxScaler(feature_range=(0, 1)).fit_transform(X)
 
 # main part of the code: evaluate the models by RepeatedStratifiedKFol 
 # defined above in get_models() and evaluate()
@@ -131,7 +131,7 @@ for i in range(len(models)):
     start_time = time.time()
     # wrap the model in a pipeline
     pipeline = Pipeline(steps=[
-                        #('n',MinMaxScaler()),
+                        #('n',MinMaxScaler(feature_range=(0, 1))),
                         ('m',models[i])
                         ])
     # evaluate the model and store results
@@ -159,15 +159,15 @@ if Hyper_Opt == True:
     # start time measurement
     start_time = time.time()
     # Number of trees in random forest
-    n_estimators = [int(x) for x in np.linspace(start = 1, stop = 150, num = 10)]
+    n_estimators = [int(x) for x in np.linspace(start = 1, stop = 250, num = 100)]
     # Number of features to consider at every split
     max_features = [
-        #'auto',
-        #'sqrt',
+        'auto',
+        'sqrt',
         'log2'
         ]
     # Maximum number of levels in tree
-    max_depth = [int(x) for x in np.linspace(100, 1000, num = 5)]
+    max_depth = [int(x) for x in np.linspace(10, 1000, num = 10)]
     max_depth.append(None)
     # Minimum number of samples required to split a node
     min_samples_split = [5, 15]
@@ -189,7 +189,7 @@ if Hyper_Opt == True:
                             ).fit(X, y)
     # get accuracy
     pipeline = Pipeline(steps=[
-        #('n',MinMaxScaler()),
+        #('n',MinMaxScaler(feature_range=(0, 1))),
         ('m',sh.best_estimator_)])
     # evaluate the model and store results
     best_model = sh.best_estimator_
@@ -215,9 +215,6 @@ with open(Pkl_Filename, 'wb') as file:
 ################## end of training ##################
 
 # feature importance for RF from sklearn documentation
-# https://scikit-learn.org/stable/auto_examples/ensemble/plot_forest_importances.html
-
-# feature_names = [f'{col}' for col in X.columns]
 forest = best_model
 forest.fit(X, y)
 importances = forest.feature_importances_

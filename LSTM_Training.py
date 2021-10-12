@@ -14,7 +14,6 @@ import datetime
 import torch
 import torch.nn as nn
 import torch.utils.data as data
-import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.preprocessing import MinMaxScaler
 from torch.utils.tensorboard import SummaryWriter
@@ -25,31 +24,31 @@ import matplotlib.dates as mdates
 
 
 ################## prepare time series data ##################
+# load dataframe
+data = pd.read_csv('data.csv')
 
 # parameters:
+save_interval = 50 # automatic saving interval
 dim = 1 # number of features in LSTM (dim >1 if more than 1 column is used for training)
 fut_pred = 90 # how many days should be predicted
-train_window = 30
-epochs = 500
+train_window = 14
+epochs = 2000
 hidden_layers =250
 hidden_layers_1 =250
-#hidden_layers_2 = 1
 drop = 0.2
 drop_1 = 0
-num_layers = 3
+num_layers = 2
 num_layers_1 = 1
-#num_layers_2 = 1
-lr = 0.0001
+lr = 1e-6
 batch_size = 1
 
 # define cumpuation device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('This Computation is running on {}'.format(device))
 
-# load dataframe
-data = pd.read_csv('data.csv')
-#data = data[['Date', 'Year','Week','Cases','Lockdown-Intensity']]
-# help function 
+
+
+# help functions
 def create_inout_sequences(input_data, tw):
     inout_seq = []
     L = len(input_data)
@@ -59,7 +58,7 @@ def create_inout_sequences(input_data, tw):
         inout_seq.append((train_seq ,train_label))
     return inout_seq
 
-def auto_save(loss,i,col):
+def auto_save(model,loss,i,col):
     saved_epoch = 0
     if i == 0:
         print('saved epoch {} with loss {}' .format(i,loss))
@@ -68,13 +67,59 @@ def auto_save(loss,i,col):
         with open(Pkl_Filename, 'wb') as file:  
             pickle.dump(model, file)
         return saved_epoch
-    if i >= 25 and loss[-1]<min(loss[24:-1]):
+    if i >= 50 and loss[-1]<min(loss[49:-1]) or i%save_interval == 0:
             print('saved epoch {} with loss {}' .format(i,loss[-1]))
             Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl'  
+            Pkl_Filename_EVO = 'LSTM-Models\EVO\LSTM-'+col+'-'+str(i)+'.pkl'
             saved_epoch = i
             with open(Pkl_Filename, 'wb') as file:  
                 pickle.dump(model, file)
-    return saved_epoch
+            with open(Pkl_Filename_EVO, 'wb') as file:  
+                pickle.dump(model, file)
+            test_inputs = train_data_normalized[-train_window:].tolist()
+            for _ in range(fut_pred):
+                seq = torch.FloatTensor(test_inputs[-train_window:])
+                with torch.no_grad():
+                    model.hidden_cell = (torch.zeros(
+                                num_layers,
+                                batch_size,
+                                model.hidden_layer_size)
+                        .to(device),
+                            torch.zeros(
+                                num_layers,
+                                batch_size,
+                                model.hidden_layer_size
+                                ).to(device))
+                    model.hidden_cell_1 = (torch.zeros(
+                        num_layers_1,
+                        batch_size,
+                        model.hidden_layer_size_1
+                        ).to(device),
+                                    torch.zeros(
+                                        num_layers_1,
+                                        batch_size,
+                                        model.hidden_layer_size_1
+                                        ).to(device))        
+                    test_inputs.append(model(seq.to(device)).detach().cpu().numpy().tolist())
+            actual_predictions = scaler.inverse_transform(np.array(test_inputs[train_window:] ).reshape(-1, dim))
+            # save the forcast into dataframe
+            df_pred[col]= pd.DataFrame(actual_predictions)
+            
+            # plot the forecast:
+            plt.subplots()
+            plt.title(col)
+            plt.ylabel('Value')
+            plt.xlabel('Date')
+            plt.grid(True)
+            plt.plot(dates,data[col])
+            plt.plot(pred_dates,actual_predictions[:,0])
+            ax = plt.gca()
+            ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
+            plt.gcf().autofmt_xdate() # Rotation
+            plt.savefig('Figures\Prediction_Graphs_Evo\Prediction-'+col+'-'+str(saved_epoch)+'.png')
+            return saved_epoch
+    
 
 
 ################## LSTM class ##################
@@ -83,7 +128,6 @@ def auto_save(loss,i,col):
 class LSTM(nn.Module):
     def __init__(self, input_size=dim, hidden_layer_size=hidden_layers, 
         hidden_layer_size_1 = hidden_layers_1, 
-        #hidden_layer_size_2 = hidden_layers_2
         ):
 
         super().__init__()
@@ -91,31 +135,36 @@ class LSTM(nn.Module):
         self.input_size = input_size
         self.hidden_layer_size = hidden_layer_size
         self.hidden_layer_size_1 = hidden_layer_size_1
-        #self.hidden_layer_size_2 = hidden_layer_size_2
 
         self.lstm = nn.LSTM(input_size, hidden_layer_size, num_layers, dropout = drop)
         self.lstm_1 = nn.LSTM(hidden_layer_size, hidden_layer_size_1, num_layers_1, dropout = drop_1)        
-        #self.lstm_2 = nn.LSTM(hidden_layer_size_1, hidden_layer_size_2, num_layers_2, dropout = 0)
         self.linear = nn.Linear(hidden_layer_size_1, input_size)
 
-        self.hidden_cell = (torch.zeros(num_layers,batch_size,self.hidden_layer_size),
-                            torch.zeros(num_layers,batch_size,self.hidden_layer_size))
-        self.hidden_cell_1 = (torch.zeros(num_layers_1,batch_size,self.hidden_layer_size_1),
-                            torch.zeros(num_layers_1,batch_size,self.hidden_layer_size_1))        
-        #self.hidden_cell_2 = (torch.zeros(num_layers_2,batch_size,self.hidden_layer_size_2),
-        #                    torch.zeros(num_layers_2,batch_size,self.hidden_layer_size_2))
+        self.hidden_cell = (torch.zeros(
+            num_layers,
+            batch_size,
+            self.hidden_layer_size),
+                            torch.zeros(
+                                num_layers,
+                                batch_size,
+                                self.hidden_layer_size))
+        self.hidden_cell_1 = (torch.zeros(
+            num_layers_1,
+            batch_size,
+            self.hidden_layer_size_1),
+                            torch.zeros(
+                                num_layers_1,
+                                batch_size,
+                                self.hidden_layer_size_1))        
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, input_seq):
         #self.lstm.flatten_parameters()
         #self.lstm_1.flatten_parameters()
-        #self.lstm_2.flatten_parameters()
         inpt = input_seq.view(len(input_seq) ,1, -1)
         lstm_out, self.hidden_cell = self.lstm(inpt, self.hidden_cell)
         lstm_out_1, self.hidden_cell = self.lstm_1(lstm_out, self.hidden_cell_1)
-        #lstm_out_2, self.hidden_cell_2 = self.lstm_2(lstm_out_1,self.hidden_cell_2)
         predictions = self.linear(lstm_out_1.view(len(input_seq), -1))
-        #predictions = lstm_out_1.view(len(input_seq), -1)
         return predictions[-1]
 ################## initialze output dataframe ##################
 
@@ -132,7 +181,8 @@ df_pred = pd.DataFrame(data=pred_dates, columns = ['Date'])
 #df_pred['Week'] = df_pred['Date'].dt.isocalendar().week
 # drop unimportant features for the training:
 df = data.drop(['Date',
-                #'Year','Week',
+                #'Year',
+                #'Week',
                 'Lockdown-Intensity'],axis=1)
 
 #########################################################
@@ -156,6 +206,7 @@ for col in df.columns:
 # sequence and labels:
     train_inout_seq = create_inout_sequences(train_data_normalized, train_window)
 # initialize model:
+    #torch.set_grad_enabled(True)
     model = LSTM().to(device)
     loss_function = nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -169,13 +220,26 @@ for col in df.columns:
     for i in range(epochs):
         for seq, labels in train_inout_seq:
             optimizer.zero_grad()
-            model.hidden_cell = (torch.zeros(num_layers,batch_size,model.hidden_layer_size).to(device),
-                            torch.zeros(num_layers,batch_size,model.hidden_layer_size).to(device))
-            model.hidden_cell_1 = (torch.zeros(num_layers_1,batch_size,model.hidden_layer_size_1).to(device),
-                            torch.zeros(num_layers_1,batch_size,model.hidden_layer_size_1).to(device))        
-            #model.hidden_cell_2 = (torch.zeros(num_layers_2,batch_size,model.hidden_layer_size_2).to(device),
-             #               torch.zeros(num_layers_2,batch_size,model.hidden_layer_size_2).to(device))
-     
+            model.hidden_cell = (torch.zeros(
+                num_layers,
+                batch_size,
+                model.hidden_layer_size
+                ).to(device),
+                            torch.zeros(num_layers,
+                            batch_size,
+                            model.hidden_layer_size
+                            ).to(device))
+            model.hidden_cell_1 = (torch.zeros(
+                num_layers_1,
+                batch_size,
+                model.hidden_layer_size_1
+                ).to(device),
+                            torch.zeros(
+                                num_layers_1,
+                                batch_size,
+                                model.hidden_layer_size_1
+                                ).to(device))        
+
             y_pred = model(seq.to(device))
             y_pred = y_pred.view(-1,dim)
 
@@ -188,10 +252,8 @@ for col in df.columns:
         writer.add_scalar("Loss/train", single_loss, i) # for TensorBoard
         writer.flush() # for TensorBoard
         loss_summary.append(single_loss.item())
-        saved_epoch = auto_save(loss_summary,i,col) # auto save best run
-        saved_epochs.append(saved_epoch)    
-        #saved_epochs = [ele for ele in saved_epochs if ele != []] # remove empty elements from list   
-    #print(f'epoch: {i:3} loss: {single_loss.item():10.10f}')  
+        saved_epoch = auto_save(model,loss_summary,i,col) # auto save best run
+        saved_epochs.append(saved_epoch)     
     # save the loss plot
     fig, ax = plt.subplots()
     plt.title(''+col+'-Loss')
@@ -205,29 +267,36 @@ for col in df.columns:
 ################## predict data ##################
 
     test_inputs = train_data_normalized[-train_window:].tolist()
-    # load best epoch
-    #best_epoch = max(saved_epochs)
-    #Pkl_Filename = Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl' 
-    #with open(Pkl_Filename, 'rb') as file:  
-        #model = pickle.load(file)
 
     model.eval()
     for i in range(fut_pred):
         seq = torch.FloatTensor(test_inputs[-train_window:])
         with torch.no_grad():
-            model.hidden_cell = (torch.zeros(num_layers,batch_size,model.hidden_layer_size).to(device),
-                            torch.zeros(num_layers,batch_size,model.hidden_layer_size).to(device))
-            model.hidden_cell_1 = (torch.zeros(num_layers_1,batch_size,model.hidden_layer_size_1).to(device),
-                            torch.zeros(num_layers_1,batch_size,model.hidden_layer_size_1).to(device))        
-            #model.hidden_cell_2 = (torch.zeros(num_layers_2,batch_size,model.hidden_layer_size_2).to(device),
-             #               torch.zeros(num_layers_2,batch_size,model.hidden_layer_size_2).to(device))     
+            model.hidden_cell = (torch.zeros(
+                num_layers,
+                batch_size,
+                model.hidden_layer_size
+                ).to(device),
+                            torch.zeros(
+                                num_layers,
+                                batch_size,
+                                model.hidden_layer_size
+                                ).to(device))
+            model.hidden_cell_1 = (torch.zeros(
+                num_layers_1,
+                batch_size,
+                model.hidden_layer_size_1
+                ).to(device),
+                            torch.zeros(
+                                num_layers_1,
+                                batch_size,
+                                model.hidden_layer_size_1
+                                ).to(device))            
             test_inputs.append(model(seq.to(device)).detach().cpu().numpy().tolist())
     actual_predictions = scaler.inverse_transform(np.array(test_inputs[train_window:] ).reshape(-1, dim))
     # save the forcast into dataframe
     df_pred[col]= pd.DataFrame(actual_predictions)   
     # plot the forecast:
-    #x = np.arange(len(train_data), len(train_data)+fut_pred, 1)  
-    # save the forecast plot
     plt.subplots()
     plt.title(col)
     plt.ylabel('Value')
@@ -240,7 +309,7 @@ for col in df.columns:
     ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
     plt.gcf().autofmt_xdate() # Rotation
-    plt.savefig('Figures\Prediction_Graphs\Prediction-'+col+'.png')
+    plt.savefig('Figures\Prediction_Graphs_Training\Prediction-'+col+'.png')
    
     elapsed_time = float("{:.0f}".format(time.time() - start_time))
     print('elapsed time for feature training: %s' % (str(datetime.timedelta(seconds=elapsed_time))))
