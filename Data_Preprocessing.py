@@ -8,7 +8,6 @@ import matplotlib.dates as mdates
 
 # ignore warning messages
 import warnings
-from pandas.core.base import DataError
 warnings.filterwarnings("ignore")
 
 # data aquisition
@@ -31,7 +30,13 @@ data_RWert = pd.read_csv(
     +'SARS-CoV-2-Nowcasting_und_'+
     '-R-Schaetzung/main/Nowcast_R_aktuell.csv'
     )
-data_infections = pd.read_csv('https://github.com/robert-koch-institut/'
+data_Hosp = pd.read_csv(
+    'https://raw.githubusercontent.com/robert-koch-institut/'
+    +'COVID-19-Hospitalisierungen_in_Deutschland/master/'
+    +'Aktuell_Deutschland_COVID-19-Hospitalisierungen.csv', 
+    usecols=['Datum', '7T_Hospitalisierung_Faelle'])
+data_infections = pd.read_csv(
+    'https://github.com/robert-koch-institut/'
     +'SARS-CoV-2_Infektionen_in_Deutschland/blob/master/'+
     'Aktuell_Deutschland_SarsCov2_Infektionen.csv?raw=true')
 
@@ -59,15 +64,14 @@ r = requests.get(
     'Klinische_Aspekte.xlsx?__blob=publicationFile', 
     headers={"User-Agent": "Chrome"}
     )
-data_all = pd.read_excel(BytesIO(r.content),header=2)
-
+data_all = pd.read_excel(BytesIO(r.content),header=3)
 ################## data preprocessing ##################
 
 # filter for reasonable columns and rename them
 data_RWert = data_RWert[['Datum', 'PS_7_Tage_R_Wert']].rename(columns={'Datum': 'Date', 'PS_7_Tage_R_Wert': 'R-value'})
-data_all = data_all[['Meldejahr', 'MW', 'Mittelwert Alter (Jahre)', 'Männer', 'Anzahl hospitalisiert', 'Anzahl Verstorben']]
+data_all = data_all[['Meldejahr', 'MW', 'Mittelwert Alter (Jahre)', 'Männer']]
 data_all.rename(columns={'Meldejahr':'Year', 'MW':'Week', 'Mittelwert Alter (Jahre)':'Age',
-         'Männer':'Gender', 'Anzahl hospitalisiert':'Hospitalization', 'Anzahl Verstorben':'Deaths'},inplace=True)        
+         'Männer':'Gender'},inplace=True)        
 data_all['Year'].replace(2022, 2021, inplace = True)
 data_vaccinations = data_vaccinations[['Datum', 'Erstimpfung', 'Zweitimpfung']].rename(
     columns={'Datum': 'Date', 'Erstimpfung': '1rst_Vac', 'Zweitimpfung' : '2nd_Vac'})
@@ -78,10 +82,10 @@ data_DIVI = data_DIVI[[
     'Datum':'Date', 
     'Aktuelle_COVID_Faelle_Erwachsene_ITS':'Intensive_Care'
     })
-data_infections = data_infections[['Refdatum','AnzahlFall']].rename(columns = {'Refdatum':'Date','AnzahlFall':'Cases'})
+data_infections = data_infections[['Refdatum','AnzahlFall','AnzahlTodesfall']].rename(columns = {'Refdatum':'Date','AnzahlFall':'Cases', 'AnzahlTodesfall':'Deaths'})
+data_Hosp.rename(columns={'Datum': 'Date', '7T_Hospitalisierung_Faelle': 'Hospitalization'}, inplace=True)
 
-################# bring data into daily format##################
-
+################# bring data into daily format ##################
 # convert a week into a date 
 # (aim: inperpolate between the weekly data to get daily data)
 def process(df,year_key,week_key,day):
@@ -96,12 +100,12 @@ def process(df,year_key,week_key,day):
 
 # insert date values in current dataframe
 data_all['Date'] = process(data_all,'Year','Week',3)
-
 # convert 'Date' object strings to datetime
 data_all['Date'] = pd.to_datetime(data_all['Date'])
 data_RWert['Date'] = pd.to_datetime(data_RWert['Date'])
+data_Hosp['Date'] = pd.to_datetime(data_Hosp['Date'])
 data_vaccinations['Date'] = pd.to_datetime(data_vaccinations['Date'],format='%d.%m.%Y')
-# get rid of the ugly utc datetime format from DIVI to set it to a datetime:
+# get rid of the utc datetime format from DIVI to set it to a datetime:
 new_dates = list()
 for i in range(len(data_DIVI)):
     new_dates.append(data_DIVI['Date'][i][0:10])
@@ -109,54 +113,76 @@ data_DIVI['Date'] = pd.DataFrame(new_dates)
 data_DIVI['Date'] = pd.to_datetime(data_DIVI['Date'],format='%Y-%m-%d')
 data_infections['Date'] = pd.to_datetime(data_infections['Date'],format='%Y-%m-%d')
 
+
 # sort DIVI data
 data_DIVI_sort = pd.DataFrame(index=data_DIVI['Date'].unique(), columns=['Intensive_Care']).rename_axis('Date')
 for day in data_DIVI['Date'].unique():
     data_DIVI_sort['Intensive_Care'][day] = data_DIVI[(data_DIVI['Date']==day)]['Intensive_Care'].sum()
+data_DIVI_sort['Date'] = data_DIVI_sort.index
+data_DIVI_sort.reset_index(drop=True, inplace=True)
+
+# sort Hospitalization data
+data_Hosp_sort = pd.DataFrame(index=data_Hosp['Date'].unique(), columns=['Hospitalization']).rename_axis('Date').sort_index()
+for day in data_Hosp['Date'].unique():
+    data_Hosp_sort['Hospitalization'][day]=data_Hosp[
+        (data_Hosp['Date']==day)]['Hospitalization'].sum()
+data_Hosp_sort['Date'] = data_Hosp_sort.index
+data_Hosp_sort.reset_index(drop=True, inplace=True)
 
 # sort infection data
-data_infections_sort = pd.DataFrame(index=data_infections['Date'].unique(), columns=['Cases']).rename_axis('Date').sort_index()
+data_infections_sort = pd.DataFrame(index=data_infections['Date'].unique(), columns=['Cases','Deaths']).rename_axis('Date').sort_index()
 for day in data_infections['Date'].unique():
     data_infections_sort['Cases'][day]=data_infections[
         (data_infections['Date']==day)]['Cases'].sum()
+    data_infections_sort['Deaths'][day]=data_infections[
+        (data_infections['Date']==day)]['Deaths'].sum()
 data_infections_sort['Date'] = data_infections_sort.index
 
-# 7 day incidince per 100.000:
-incidince = list()
+# 7 day Incidence per 100.000:
+Incidence = list()
 for i in range(len(data_infections_sort)+1):
     if i < 6:
         inc = 0
-        incidince.append(inc)
+        Incidence.append(inc)
     if i  > 6:
         inc = data_infections_sort['Cases'][i-7:i].sum()/831
-        incidince.append(inc)
+        Incidence.append(inc)
 data_infections_sort.reset_index(drop=True, inplace=True)
-data_infections_sort['Incidince'] = pd.DataFrame(incidince)
+data_infections_sort['Incidence'] = pd.DataFrame(Incidence)
 
+
+data_date = {'Date' : pd.date_range(start='2020-01-01',
+                                end=date.today().strftime("%Y-%m-%d"), 
+                                  freq='D')}
+data_date= pd.DataFrame(data_date)
 ###################### merge dataframes on 'Date' ############################
-data = pd.merge(data_RWert,data_all,how='outer',on=['Date'])
-data = pd.merge(data,data_vaccinations,how='outer',on=['Date'])
-data = pd.merge(data,data_DIVI_sort,how='outer',on=['Date'])
-data = pd.merge(data,data_infections_sort,how='outer',on=['Date'])
+dfs = [data_date,data_all,data_RWert,data_vaccinations,data_DIVI_sort,data_infections_sort,data_Hosp_sort]
+data = [df.set_index(df['Date']) for df in dfs]
+data = pd.DataFrame(data[0].join(data[1:],how ='left'))
+data.drop(['Date_x','Date_y','Date'],axis=1,inplace=True)
+data['Date'] = data.index
+data.reset_index(drop=True, inplace=True)
+data.drop(range(366,376),inplace = True)
+data.reset_index(drop=True, inplace=True)
+#data = pd.merge(data_RWert,data_all,how='outer',on=['Date'])
+#data = pd.merge(data,data_vaccinations,how='outer',on=['Date'])
+#data = pd.merge(data,data_DIVI_sort,how='outer',on=['Date'])
+#data = pd.merge(data,data_infections_sort,how='outer',on=['Date'])
+#data = pd.merge(data,data_Hosp_sort,how='outer',on=['Date'])
 
-data.set_index('Date', inplace = True) # sort_values didn't work, so here we go with sort_index
-data.rename_axis('Date_index', inplace = True)
-data.sort_index(inplace = True)
+
+#data.set_index('Date', inplace = True) # sort_values didn't work, so here we go with sort_index
+#data.rename_axis('Date_index', inplace = True)
+#data.sort_index(inplace = True)
 
 #  fill, interpolate and smooth data:
 data[['Year','Week']] = data[['Year','Week']].fillna(method='ffill',axis=0)  # fill missing week and year numbers
 data[['1rst_Vac', '2nd_Vac']] = data[['1rst_Vac', '2nd_Vac']].fillna(value = 0, axis=0).cumsum()  # fill missing vaccination numbers with zero
-data[data.columns[0:-1]] = data[data.columns[0:-1]].interpolate(method = 'spline',order = 3, axis = 0)  # interpolate missing data from weekly dataframes
+data[data.columns[0:-2]] = data[data.columns[0:-2]].interpolate(method = 'spline',order = 5, limit_direction ='forward')  # interpolate missing data from weekly dataframes
+data['Deaths'] = data['Deaths'].rolling(7).sum()/7 # smoothen
 data['Age'] = data['Age'].rolling(7).sum()/7 # smoothen
-data['Gender'] = data['Gender'].rolling(7).sum()/7 # smoothen
-data.drop(data.loc[data['Cases']<0].index,inplace=True)  # drop unrealistic case numbers from interpolation
-data[['Intensive_Care']]=data[['Intensive_Care']].fillna(0)
-data.drop(data.loc[data['Hospitalization']<0].index,inplace=True) # drop unrealistic case numbers from interpolation
-data.drop(data.loc[data['R-value']>1.6].index,inplace=True) # drop unrealistic R-Values from first days calculations
-data['Date'] = data.index # restore Data column
-data.reset_index(drop=True, inplace=True)
-# correct data:
-data[['Hospitalization']] = data[['Hospitalization']]/7
+data['Gender'] = data['Gender'].rolling(14).sum()/14 # smoothen
+data['Gender'] = data['Gender'].rolling(14).sum()/14
 
 # create a column for the prevailing trend: 0 = decreasing and 1 = increasing
 trend = np.ones((len(data),1)).astype(int)
@@ -188,55 +214,65 @@ Lockdown = pd.DataFrame([
                     ('2021-04-23', '2'),
                     ('2021-06-20', '0'),
                     # from here dates are based on RKI recommendations
-                    ('2021-07-19', '1'),
-                    ('2021-08-14', '2'),
-                    ('2021-08-28', '3'),
-                    ('2021-09-21', '2'),
-                    ('2021-10-01', '1')],       
+                    ('2021-08-14', '1'),
+                    ('2021-08-21', '2'),
+                    ('2021-09-21', '1'),
+                    ('2021-10-01', '2'),
+                    ('2021-10-24', '3')
+                    ],       
            columns=('Date', 'Lockdown-Intensity')
                  )
-Lockdown['Date'] = pd.to_datetime(Lockdown['Date'])   
-data = pd.merge(data,Lockdown,how='outer',on=['Date'])       # merge dataframes
+Lockdown['Date'] = pd.to_datetime(Lockdown['Date'])
+Lockdown.set_index('Date', inplace = True)
+data.set_index('Date', inplace = True)
+data = data.join(Lockdown)     
 data['Lockdown-Intensity'].fillna(method='ffill',inplace=True) # fill the missing data by using preceding values 
-data['Date'] = pd.to_datetime(data['Date'])
-
+data['Date'] = data.index
 data.dropna(inplace=True)
 data.reset_index(drop=True, inplace=True)
-data.drop(list(range(len(data)-2,len(data))), inplace = True) # drop the last days because RKI data are delayed for about 2 days
+# drop the last days because RKI data are delayed for a few days
+data.drop(list(range(len(data)-3,
+    len(data))), inplace = True) 
 
 # select relevant columns:
 data_final = data[[
     'Date',
     #'Year',
-    #'Week',
+    'Week',
     'Age',
-    'R-value', 
+    #'R-value', 
     #'Cases',
     'Hospitalization',
-    #'Incidince',
-    'Intensive_Care', 
+    #'Incidence',
+    #'Intensive_Care', 
     'Gender',
-    #'Deaths',
+    'Deaths',
     #'1rst_Vac', 
     '2nd_Vac', 
     'Lockdown-Intensity'
        ]]
+split = 0.7
+data_train = data_final[0:int(split*len(data))]
+data_test = data_final[int(split*len(data)):]
 
 ################## save dataframe to csv ##################
-
 data_final.to_csv('data.csv',index = False)
+data_train.to_csv('data_train.csv',index = False)
+data_test.to_csv('data_test.csv',index = False)
 ################## end of preprocessing ##################
 
 index = pd.to_datetime(data['Date'])
 
 plt.subplots()
-plt.plot(index, data['Cases'])
-plt.plot(index, data['Incidince']*100)
-plt.plot(index, data['Intensive_Care'])
+#plt.plot(index, data['Cases'])
+plt.plot(index, data['Incidence'])
+plt.plot(index, data['Hospitalization']/831)
+plt.plot(index, data['Intensive_Care']/831)
+plt.plot(index, data['Deaths']/831*10)
 plt.title("Covid-19 in Germany")
 plt.ylabel("Cases")
 plt.xlabel('Date')
-plt.legend(['Daily Cases', '7 Day Incidinces x 100', 'Intensive_Care'])
+plt.legend(['7 Day Incidences', 'Hospitalizations', 'Intensive_Care', 'Deaths x 10'])
 ax = plt.gca()
 ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))

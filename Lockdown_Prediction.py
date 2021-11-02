@@ -6,11 +6,9 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import pyplot
 import matplotlib.dates as mdates
-from numpy import mean
-from numpy import std
 from sklearn.preprocessing import MinMaxScaler
+from cycler import cycler
 
 # predict timeseries
 import torch
@@ -26,7 +24,7 @@ smooth = 3 # interval of days for rolling mean
 new_prediction = True
 
 # hyperparameter
-fut_pred = 90 # how many days should be predicted
+fut_pred = 160 # how many days should be predicted
 train_window = 14
 dim = 1 # number of features in LSTM (dim >1 if more than 1 column is used for training)
 hidden_layers =250
@@ -69,7 +67,7 @@ class LSTM(nn.Module):
                                 num_layers_1,
                                 batch_size,
                                 self.hidden_layer_size_1))        
-        self.sigmoid = nn.Sigmoid()
+        #self.sigmoid = nn.Sigmoid()
 
     def forward(self, input_seq):
         self.lstm.flatten_parameters()
@@ -97,7 +95,7 @@ if new_prediction:
     print('This Computation is running on {}'.format(device))
 
     data_pred = pd.DataFrame()
-    df = data_current.drop(['Date',
+    df = data_current.drop(['Date','Week',
                 'Lockdown-Intensity'],axis=1)
     
     dates = pd.to_datetime(data_current['Date'])
@@ -108,6 +106,11 @@ if new_prediction:
     pred_dates = pd.to_datetime(dateList)
     pred_dates = np.array(pred_dates)
     pred_dates = pd.DataFrame(data=pred_dates, columns = ['Date'])
+
+
+    data_pred['Week'] = pred_dates['Date'].dt.isocalendar().week
+
+
     for col in df.columns:
         saved_epochs = list()
         df_temp = df[col].values.astype(float) # define dataset for training   
@@ -166,6 +169,7 @@ if new_prediction:
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
         plt.gcf().autofmt_xdate() # Rotation
         plt.savefig('Figures\Prdiction_Graphs_Current\Prediction_'+col+'.png')
+        plt.close()
 ############## end of prediction loop ##############################
 
 data = data_current.append(data_pred)
@@ -176,10 +180,14 @@ y_pred = Pickled_Model.predict_proba(X)
 y_pred = pd.DataFrame(y_pred).rolling(smooth).sum()/smooth
 y_pred.drop(range(len(data_current)), inplace = True)
 
+
 index = pred_dates
-plt.subplots()
+plt.rc('axes', prop_cycle=(cycler(color=['lightsteelblue', 'lime', 'darkorange', 'red']) 
+                            + cycler(linestyle=['-','-','-','-']))
+                           )
+fig, ax = plt.subplots()
 plt.plot(index, y_pred)
-plt.title("Probabilities for Covid-19 Measures")
+plt.title("Probabilities for SARS-CoV-2 Measures")
 plt.ylabel("Probability")
 plt.xlabel('Date')
 plt.legend(['No Lockdown','Light', 'Middle', 'Hard'])
@@ -188,3 +196,4 @@ ax.xaxis.set_major_locator(mdates.DayLocator(interval=14))
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
 plt.gcf().autofmt_xdate() # Rotation
 plt.savefig('Figures\Prdiction_Graphs_Current\Lockdown_Probability.png')
+plt.close()

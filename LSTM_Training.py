@@ -32,7 +32,7 @@ save_interval = 50 # automatic saving interval
 dim = 1 # number of features in LSTM (dim >1 if more than 1 column is used for training)
 fut_pred = 90 # how many days should be predicted
 train_window = 14
-epochs = 2000
+epochs = 1000
 hidden_layers =250
 hidden_layers_1 =250
 drop = 0.2
@@ -118,6 +118,7 @@ def auto_save(model,loss,i,col):
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
             plt.gcf().autofmt_xdate() # Rotation
             plt.savefig('Figures\Prediction_Graphs_Evo\Prediction-'+col+'-'+str(saved_epoch)+'.png')
+            plt.close()
             return saved_epoch
     
 
@@ -159,8 +160,8 @@ class LSTM(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, input_seq):
-        #self.lstm.flatten_parameters()
-        #self.lstm_1.flatten_parameters()
+        self.lstm.flatten_parameters()
+        self.lstm_1.flatten_parameters()
         inpt = input_seq.view(len(input_seq) ,1, -1)
         lstm_out, self.hidden_cell = self.lstm(inpt, self.hidden_cell)
         lstm_out_1, self.hidden_cell = self.lstm_1(lstm_out, self.hidden_cell_1)
@@ -178,13 +179,20 @@ pred_dates = pd.to_datetime(dateList)
 pred_dates = np.array(pred_dates)
 df_pred = pd.DataFrame(data=pred_dates, columns = ['Date'])
 #df_pred['Year'] = df_pred['Date'].dt.year
-#df_pred['Week'] = df_pred['Date'].dt.isocalendar().week
+df_pred['Week'] = df_pred['Date'].dt.isocalendar().week
 # drop unimportant features for the training:
 df = data.drop(['Date',
                 #'Year',
-                #'Week',
+                'Week',
+                #'1rst_Vac',
+                #'2nd_Vac',
+                #'Gender',
+                #'Intensive_Care',
+                #'Deaths',
+                #'Age',
+                #'Hospitalization',
                 'Lockdown-Intensity'],axis=1)
-
+df = df[['Age','Hospitalization', 'Deaths', 'Gender']]
 #########################################################
 ################## start training loop ##################
 #########################################################
@@ -208,6 +216,11 @@ for col in df.columns:
 # initialize model:
     #torch.set_grad_enabled(True)
     model = LSTM().to(device)
+
+    Pkl_Filename = Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl' 
+    with open(Pkl_Filename, 'rb') as file:  
+        model = pickle.load(file)
+
     loss_function = nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     print('>>>train feature: %s' % (col))
@@ -263,7 +276,8 @@ for col in df.columns:
     plt.grid(True)
     plt.plot(loss_summary)
     plt.savefig('Figures\LSTM_Training_Loss\Prediction-loss-'+col+'.png')
-    
+    plt.close()
+
 ################## predict data ##################
 
     test_inputs = train_data_normalized[-train_window:].tolist()
@@ -310,7 +324,7 @@ for col in df.columns:
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
     plt.gcf().autofmt_xdate() # Rotation
     plt.savefig('Figures\Prediction_Graphs_Training\Prediction-'+col+'.png')
-   
+    plt.close()
     elapsed_time = float("{:.0f}".format(time.time() - start_time))
     print('elapsed time for feature training: %s' % (str(datetime.timedelta(seconds=elapsed_time))))
 
