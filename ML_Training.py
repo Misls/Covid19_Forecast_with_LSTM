@@ -50,7 +50,7 @@ import pickle
 
 ############## parameters ##################
 
-n_ensemble = 5 # number of classifiers in the ensemble 
+n_ensemble = 3 # number of classifiers in the ensemble 
 Hyper_Opt = False # Hyperparameter optimization 
 # if false: best model will be taken without further opimization 
 

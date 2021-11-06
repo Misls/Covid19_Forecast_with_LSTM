@@ -149,7 +149,9 @@ for i in range(len(data_infections_sort)+1):
         Incidence.append(inc)
 data_infections_sort.reset_index(drop=True, inplace=True)
 data_infections_sort['Incidence'] = pd.DataFrame(Incidence)
-
+# drop the last days because RKI data are delayed for a few days
+data_infections_sort.drop(list(range(len(data_infections_sort)-7,
+    len(data_infections_sort))), inplace = True) 
 
 data_date = {'Date' : pd.date_range(start='2020-01-01',
                                 end=date.today().strftime("%Y-%m-%d"), 
@@ -164,26 +166,16 @@ data['Date'] = data.index
 data.reset_index(drop=True, inplace=True)
 data.drop(range(366,376),inplace = True)
 data.reset_index(drop=True, inplace=True)
-#data = pd.merge(data_RWert,data_all,how='outer',on=['Date'])
-#data = pd.merge(data,data_vaccinations,how='outer',on=['Date'])
-#data = pd.merge(data,data_DIVI_sort,how='outer',on=['Date'])
-#data = pd.merge(data,data_infections_sort,how='outer',on=['Date'])
-#data = pd.merge(data,data_Hosp_sort,how='outer',on=['Date'])
-
-
-#data.set_index('Date', inplace = True) # sort_values didn't work, so here we go with sort_index
-#data.rename_axis('Date_index', inplace = True)
-#data.sort_index(inplace = True)
 
 #  fill, interpolate and smooth data:
 data[['Year','Week']] = data[['Year','Week']].fillna(method='ffill',axis=0)  # fill missing week and year numbers
 data[['1rst_Vac', '2nd_Vac']] = data[['1rst_Vac', '2nd_Vac']].fillna(value = 0, axis=0).cumsum()  # fill missing vaccination numbers with zero
-data[data.columns[0:-2]] = data[data.columns[0:-2]].interpolate(method = 'spline',order = 5, limit_direction ='forward')  # interpolate missing data from weekly dataframes
+data['Gender'] = data['Gender'].interpolate(method = 'linear', limit_direction = 'forward')
+data[data.columns[0:-2]] = data[data.columns[0:-2]].interpolate(method = 'spline', axis = 0, order = 1, limit_direction ='forward').ffill()  # interpolate missing data from weekly dataframes
 data['Deaths'] = data['Deaths'].rolling(7).sum()/7 # smoothen
 data['Age'] = data['Age'].rolling(7).sum()/7 # smoothen
-data['Gender'] = data['Gender'].rolling(14).sum()/14 # smoothen
-data['Gender'] = data['Gender'].rolling(14).sum()/14
-
+data['Gender'] = data['Gender'].rolling(7).sum()/7 # smoothen
+print(data)
 # create a column for the prevailing trend: 0 = decreasing and 1 = increasing
 trend = np.ones((len(data),1)).astype(int)
 for i in range(len(data)):
@@ -230,9 +222,8 @@ data['Lockdown-Intensity'].fillna(method='ffill',inplace=True) # fill the missin
 data['Date'] = data.index
 data.dropna(inplace=True)
 data.reset_index(drop=True, inplace=True)
-# drop the last days because RKI data are delayed for a few days
-data.drop(list(range(len(data)-3,
-    len(data))), inplace = True) 
+
+
 
 # select relevant columns:
 data_final = data[[
@@ -243,15 +234,15 @@ data_final = data[[
     #'R-value', 
     #'Cases',
     'Hospitalization',
-    #'Incidence',
-    #'Intensive_Care', 
+    'Incidence',
+    'Intensive_Care', 
     'Gender',
     'Deaths',
     #'1rst_Vac', 
     '2nd_Vac', 
     'Lockdown-Intensity'
        ]]
-split = 0.7
+split = 0.8
 data_train = data_final[0:int(split*len(data))]
 data_test = data_final[int(split*len(data)):]
 
@@ -304,3 +295,15 @@ ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
 plt.gcf().autofmt_xdate() # Rotation
 plt.savefig('Figures\Data_Graphs\Covid-Data-Vaccinations.png')
+
+plt.subplots()
+plt.plot(index, data['Gender'])
+plt.title("Covid-19 in Germany")
+plt.ylabel("Gender Ratio")
+plt.xlabel('Date')
+plt.legend(['Gender'])
+ax = plt.gca()
+ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
+plt.gcf().autofmt_xdate() # Rotation
+plt.savefig('Figures\Data_Graphs\Covid-Data-Gender.png')

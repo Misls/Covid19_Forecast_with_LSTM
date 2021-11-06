@@ -188,11 +188,19 @@ df = data.drop(['Date',
                 #'2nd_Vac',
                 #'Gender',
                 #'Intensive_Care',
+                #'Incidence',
                 #'Deaths',
                 #'Age',
                 #'Hospitalization',
                 'Lockdown-Intensity'],axis=1)
-df = df[['Age','Hospitalization', 'Deaths', 'Gender']]
+df = df[[
+        'Age',
+        'Intensive_Care',
+        'Hospitalization',
+        'Incidence', 
+        'Deaths', 
+        'Gender'
+        ]]
 #########################################################
 ################## start training loop ##################
 #########################################################
