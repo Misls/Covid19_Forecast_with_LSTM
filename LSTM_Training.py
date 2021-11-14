@@ -25,21 +25,18 @@ import matplotlib.dates as mdates
 
 ################## prepare time series data ##################
 # load dataframe
-data = pd.read_csv('data.csv')
+data = pd.read_csv('data_all.csv')
 
 # parameters:
 save_interval = 50 # automatic saving interval
 dim = 1 # number of features in LSTM (dim >1 if more than 1 column is used for training)
 fut_pred = 90 # how many days should be predicted
 train_window = 14
-epochs = 1000
+epochs = 1500
 hidden_layers =250
-hidden_layers_1 =250
 drop = 0.2
-drop_1 = 0
-num_layers = 2
-num_layers_1 = 1
-lr = 1e-6
+num_layers = 3
+lr = 3e-6
 batch_size = 1
 
 # define cumpuation device
@@ -90,16 +87,6 @@ def auto_save(model,loss,i,col):
                                 batch_size,
                                 model.hidden_layer_size
                                 ).to(device))
-                    model.hidden_cell_1 = (torch.zeros(
-                        num_layers_1,
-                        batch_size,
-                        model.hidden_layer_size_1
-                        ).to(device),
-                                    torch.zeros(
-                                        num_layers_1,
-                                        batch_size,
-                                        model.hidden_layer_size_1
-                                        ).to(device))        
                     test_inputs.append(model(seq.to(device)).detach().cpu().numpy().tolist())
             actual_predictions = scaler.inverse_transform(np.array(test_inputs[train_window:] ).reshape(-1, dim))
             # save the forcast into dataframe
@@ -117,7 +104,8 @@ def auto_save(model,loss,i,col):
             ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
             plt.gcf().autofmt_xdate() # Rotation
-            plt.savefig('Figures\Prediction_Graphs_Evo\Prediction-'+col+'-'+str(saved_epoch)+'.png')
+            plt.savefig('Figures\Prediction_Graphs_Evo\Prediction-'
+                +col+'-'+str(saved_epoch)+'.png')
             plt.close()
             return saved_epoch
     
@@ -127,19 +115,15 @@ def auto_save(model,loss,i,col):
 
 # define Long Short Term Memory Network (LSTM):
 class LSTM(nn.Module):
-    def __init__(self, input_size=dim, hidden_layer_size=hidden_layers, 
-        hidden_layer_size_1 = hidden_layers_1, 
-        ):
+    def __init__(self, input_size=dim, hidden_layer_size=hidden_layers):
 
         super().__init__()
 
         self.input_size = input_size
         self.hidden_layer_size = hidden_layer_size
-        self.hidden_layer_size_1 = hidden_layer_size_1
 
-        self.lstm = nn.LSTM(input_size, hidden_layer_size, num_layers, dropout = drop)
-        self.lstm_1 = nn.LSTM(hidden_layer_size, hidden_layer_size_1, num_layers_1, dropout = drop_1)        
-        self.linear = nn.Linear(hidden_layer_size_1, input_size)
+        self.lstm = nn.LSTM(input_size, hidden_layer_size, num_layers, dropout = drop)        
+        self.linear = nn.Linear(hidden_layer_size, input_size)
 
         self.hidden_cell = (torch.zeros(
             num_layers,
@@ -148,24 +132,14 @@ class LSTM(nn.Module):
                             torch.zeros(
                                 num_layers,
                                 batch_size,
-                                self.hidden_layer_size))
-        self.hidden_cell_1 = (torch.zeros(
-            num_layers_1,
-            batch_size,
-            self.hidden_layer_size_1),
-                            torch.zeros(
-                                num_layers_1,
-                                batch_size,
-                                self.hidden_layer_size_1))        
-        self.sigmoid = nn.Sigmoid()
+                                self.hidden_layer_size))     
+        #self.sigmoid = nn.Sigmoid()
 
     def forward(self, input_seq):
         self.lstm.flatten_parameters()
-        self.lstm_1.flatten_parameters()
         inpt = input_seq.view(len(input_seq) ,1, -1)
         lstm_out, self.hidden_cell = self.lstm(inpt, self.hidden_cell)
-        lstm_out_1, self.hidden_cell = self.lstm_1(lstm_out, self.hidden_cell_1)
-        predictions = self.linear(lstm_out_1.view(len(input_seq), -1))
+        predictions = self.linear(lstm_out.view(len(input_seq), -1))
         return predictions[-1]
 ################## initialze output dataframe ##################
 
@@ -184,22 +158,19 @@ df_pred['Week'] = df_pred['Date'].dt.isocalendar().week
 df = data.drop(['Date',
                 #'Year',
                 'Week',
-                #'1rst_Vac',
-                #'2nd_Vac',
-                #'Gender',
-                #'Intensive_Care',
-                #'Incidence',
-                #'Deaths',
-                #'Age',
-                #'Hospitalization',
                 'Lockdown-Intensity'],axis=1)
+
+# choose features for training
 df = df[[
-        'Age',
-        'Intensive_Care',
-        'Hospitalization',
+        #'Age',
+        #'Intensive_Care',
+        #'Hospitalization',
         'Incidence', 
-        'Deaths', 
-        'Gender'
+        #'2nd_Vac',
+        #'Booster',
+        #'Gender',
+        #'R-value',
+        #'Deaths'
         ]]
 #########################################################
 ################## start training loop ##################
@@ -222,7 +193,6 @@ for col in df.columns:
 # sequence and labels:
     train_inout_seq = create_inout_sequences(train_data_normalized, train_window)
 # initialize model:
-    #torch.set_grad_enabled(True)
     model = LSTM().to(device)
 
     Pkl_Filename = Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl' 
@@ -249,17 +219,7 @@ for col in df.columns:
                             torch.zeros(num_layers,
                             batch_size,
                             model.hidden_layer_size
-                            ).to(device))
-            model.hidden_cell_1 = (torch.zeros(
-                num_layers_1,
-                batch_size,
-                model.hidden_layer_size_1
-                ).to(device),
-                            torch.zeros(
-                                num_layers_1,
-                                batch_size,
-                                model.hidden_layer_size_1
-                                ).to(device))        
+                            ).to(device))      
 
             y_pred = model(seq.to(device))
             y_pred = y_pred.view(-1,dim)
@@ -283,7 +243,8 @@ for col in df.columns:
     plt.xlabel('Epoch')
     plt.grid(True)
     plt.plot(loss_summary)
-    plt.savefig('Figures\LSTM_Training_Loss\Prediction-loss-'+col+'.png')
+    plt.savefig('Figures\LSTM_Training_Loss\Prediction-loss-'
+        +col+'.png')
     plt.close()
 
 ################## predict data ##################
@@ -303,17 +264,7 @@ for col in df.columns:
                                 num_layers,
                                 batch_size,
                                 model.hidden_layer_size
-                                ).to(device))
-            model.hidden_cell_1 = (torch.zeros(
-                num_layers_1,
-                batch_size,
-                model.hidden_layer_size_1
-                ).to(device),
-                            torch.zeros(
-                                num_layers_1,
-                                batch_size,
-                                model.hidden_layer_size_1
-                                ).to(device))            
+                                ).to(device))        
             test_inputs.append(model(seq.to(device)).detach().cpu().numpy().tolist())
     actual_predictions = scaler.inverse_transform(np.array(test_inputs[train_window:] ).reshape(-1, dim))
     # save the forcast into dataframe
@@ -331,7 +282,8 @@ for col in df.columns:
     ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
     plt.gcf().autofmt_xdate() # Rotation
-    plt.savefig('Figures\Prediction_Graphs_Training\Prediction-'+col+'.png')
+    plt.savefig('Figures\Prediction_Graphs_Training\Prediction-'
+        +col+'.png')
     plt.close()
     elapsed_time = float("{:.0f}".format(time.time() - start_time))
     print('elapsed time for feature training: %s' % (str(datetime.timedelta(seconds=elapsed_time))))

@@ -17,6 +17,11 @@ import seaborn as sns
 import time
 import datetime
 
+# ignore warning messages
+import warnings
+warnings.filterwarnings("ignore")
+
+
 # machine learning algorithms:
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
@@ -28,6 +33,7 @@ from sklearn.ensemble import BaggingClassifier
 from sklearn.svm import SVC
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.neural_network import MLPClassifier
+from sklearn.linear_model import Perceptron
 from sklearn.linear_model import RidgeClassifier
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.ensemble import VotingClassifier
@@ -36,13 +42,14 @@ from sklearn.ensemble import VotingClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.pipeline import Pipeline
+from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.model_selection import train_test_split
 from sklearn.inspection import permutation_importance
-from sklearn.datasets import make_classification
 from sklearn.experimental import enable_halving_search_cv
 from sklearn.model_selection import HalvingGridSearchCV
+from sklearn.preprocessing import minmax_scale
 
 
 # saving model:
@@ -50,16 +57,17 @@ import pickle
 
 ############## parameters ##################
 
-n_ensemble = 3 # number of classifiers in the ensemble 
+n_ensemble = 5 # number of classifiers in the ensemble 
 Hyper_Opt = False # Hyperparameter optimization 
-# if false: best model will be taken without further opimization 
+# if False: best model will be taken without further opimization 
 
 ################## load dataframe ##################
-
 data = pd.read_csv('data.csv').dropna()
 
+# define features and target
+X, y = data.drop(['Date','Lockdown-Intensity'], axis=1), data['Lockdown-Intensity']
+feature_names = [f'{col}' for col in X.columns]
 ################## define help functions ##################
-
 # evaluate a model
 def evaluate_model(X, y, model):
     # define evaluation procedure
@@ -88,6 +96,9 @@ def get_models():
     # GaussianNB
     models.append(GaussianNB())
     names.append('GaussianNB')
+    #Perceptron
+    models.append(Perceptron())
+    names.append('Perceptron')
     # LogisticRegression
     models.append(LogisticRegression())
     names.append('LogisticRegression')
@@ -101,7 +112,7 @@ def get_models():
     models.append(LinearDiscriminantAnalysis())
     names.append('LinearDiscriminant')
     # SVM
-    models.append(SVC(gamma='scale', probability = True))
+    models.append(SVC(gamma='scale',kernel='poly', tol = 0.01, probability = True))
     names.append('SVC')
     # KNeighbors
     models.append(KNeighborsClassifier())
@@ -110,8 +121,8 @@ def get_models():
     models.append(DecisionTreeClassifier())
     names.append('DecisionTree')
     # Bagging
-    #models.append(BaggingClassifier())
-    #names.append('Bagging')
+    models.append(BaggingClassifier())
+    names.append('Bagging')
     # RF
     models.append(RandomForestClassifier(n_estimators = 100))
     names.append('RandomForest')
@@ -119,11 +130,6 @@ def get_models():
     models.append(GradientBoostingClassifier())
     names.append('GradientBoosting')
     return models, names
-
-# define features and target
-X, y = data.drop(['Date','Lockdown-Intensity'], axis=1), data['Lockdown-Intensity']
-feature_names = [f'{col}' for col in X.columns]
-
 
 # define models
 models, names = get_models()
@@ -179,20 +185,20 @@ if Hyper_Opt:
     start_time = time.time()
     ########### RandomForest ###############
     # Number of trees in random forest
-    n_estimators = [int(x) for x in np.linspace(start = 10, stop = 250, num = 50)]
+    n_estimators = [int(x) for x in np.linspace(start = 1, stop = 150, num = 75)]
     # Number of features to consider at every split
     max_features = [
-        'auto',
+        #'auto',
         'sqrt',
         'log2'
         ]
     # Maximum number of levels in tree
-    max_depth = [int(x) for x in np.linspace(10, 1000, num = 10)]
+    max_depth = [int(x) for x in np.linspace(10, 1000, num = 100)]
     max_depth.append(None)
     # Minimum number of samples required to split a node
-    min_samples_split = [5, 15]
+    min_samples_split = [2, 4, 6]
     # Minimum number of samples required at each leaf node
-    min_samples_leaf = [1, 2, 4]
+    min_samples_leaf = [1, 4, 6, 8]
     # Method of selecting samples for training each tree
     bootstrap = [True, False]# Create the random grid
     ############# Gadient Boost ###################
@@ -216,13 +222,13 @@ if Hyper_Opt:
     estimators = []
     names_hyper_opt = top_models['Names']
     models_hyper_opt = top_models['Models']
-    scores_hyper_opt = top_models['Score']
+    scores_hyper_opt = np.zeros(n_ensemble)
     for i in range(n_ensemble):
         if str(models_hyper_opt[i]) == 'RandomForestClassifier()':
             random_grid = {
                             'n_estimators': n_estimators,
                             'max_features': max_features,
-                            'max_depth': max_depth,
+                            #'max_depth': max_depth,
                             'min_samples_split': min_samples_split,
                             'min_samples_leaf': min_samples_leaf,
                             #'bootstrap': bootstrap
@@ -239,7 +245,7 @@ if Hyper_Opt:
             random_grid = {
                             'n_neighbors': n_neighbors,
                             'weights' : weights_KN, 
-                            #'leaf_size' : leaf_size
+                            'leaf_size' : leaf_size
                         }
         if str(models_hyper_opt[i]) == 'DecisionTreeClassifier()':
             random_grid = {
@@ -247,7 +253,29 @@ if Hyper_Opt:
                             'max_depth': max_depth,
                             'min_samples_split': min_samples_split
                         }
-        print('start hyperparameter optimization...')
+        if str(models_hyper_opt[i]) == 'SVC(probability=True)':
+            random_grid = {
+                            #'gamma' : ['scale', 'auto'],
+                            'tol': [1e-2,1e-3,1e-4],
+                            'kernel': ['linear', 'poly', 'rbf', 'sigmoid']
+                        }
+        if str(models_hyper_opt[i]) == 'BaggingClassifier()':
+            random_grid = {
+                            'base_estimator' : [
+                                Perceptron(tol=1e-3),
+                                DecisionTreeClassifier(),
+                                KNeighborsClassifier(),
+                                SVC(probability=True),
+                                LogisticRegression(),
+                                #RandomForestClassifier(),
+                                #KNeighborsClassifier(), 
+                                #GradientBoostingClassifier()
+                                ],
+                            'n_estimators': n_estimators
+                        }
+
+
+        print('start hyperparameter optimization: %s' % (str(models_hyper_opt[i])))
         base_estimator = models_hyper_opt[i]
         sh = HalvingGridSearchCV(base_estimator, random_grid, cv=20,
                                 factor=3,n_jobs=-1,#max_resources=50,
@@ -259,7 +287,8 @@ if Hyper_Opt:
         # evaluate the model and store results
         hyper_opt_model = (names_hyper_opt[i], sh.best_estimator_)
         score = evaluate_model(X, y, pipeline)
-        improvement = mean(score) - scores_hyper_opt[i]
+        improvement = mean(score) - top_models['Score'][i]
+        scores_hyper_opt[i] = mean(score)
         estimators.append(hyper_opt_model)
         
         # end time measurement
@@ -272,11 +301,15 @@ else:
      print('>>> No hyperparameter optimization. To run code with optimization set Hyper_Opt = True')
 
 ############### build ensemble learner ####################
-weights = list(top_models['Score']/top_models['Score'].sum()) #list(zip(*map(top_models.get, ['Score'])))
+if Hyper_Opt:
+    weights = list(scores_hyper_opt/(scores_hyper_opt.sum()))
+else:
+    weights = list(top_models['Score']/(top_models['Score'].sum()))
+#weights = minmax_scale(weights, feature_range=(0.1, 1))
 ensemble = VotingClassifier(estimators, voting='soft', n_jobs = -1, weights = weights)
 ensemble_score = evaluate_model(X, y, ensemble)
 ensemble.fit(X, y)
-print('Accuracy of Top %i classifier ensemble: %.3f \xb1 %.3f' % (n_ensemble,mean(ensemble_score), std(ensemble_score)))
+print('Accuracy of Top %i ensemble classifier: %.3f \xb1 %.3f' % (n_ensemble,mean(ensemble_score), std(ensemble_score)))
 best_model = ensemble
 #best_model = RandomForestClassifier()
 
@@ -293,15 +326,16 @@ with open(Pkl_Filename, 'wb') as file:
 forest = RandomForestClassifier()
 forest.fit(X, y)
 importances = forest.feature_importances_
+sorted_idx = importances.argsort()
 std = np.std([
     tree.feature_importances_ for tree in forest.estimators_], axis=0)
-forest_importances = pd.Series(importances, index=feature_names)
+forest_importances = pd.Series(importances, index=feature_names)[sorted_idx]
 
-# if KNN is part of the ensemble: comment the two lines out
+# if KNN or Bagging is part of the ensemble: comment the two lines out
 #importances = compute_feature_importance(ensemble, weights)
-#forest_importances = pd.Series(importances, index=feature_names)
+#forest_importances = pd.Series(importances, index=feature_names)[sorted_idx]
 
-
+plt.rcParams.update({'font.size': 12})
 fig, ax = plt.subplots()
 forest_importances.plot.bar(yerr=std, ax=ax)
 ax.set_title("Feature importances using MDI")
@@ -319,10 +353,10 @@ X_train, X_test, y_train, y_test = train_test_split(
 result = permutation_importance(
     forest, X_test, y_test, n_repeats=100, n_jobs=-1)
 forest_importances = pd.Series(result.importances_mean, index=feature_names)
-
+sorted_idx = forest_importances.argsort()
 
 fig, ax = plt.subplots()
-forest_importances.plot.bar(yerr=result.importances_std, ax=ax)
+forest_importances[sorted_idx].plot.bar(yerr=result.importances_std[sorted_idx], ax=ax)
 ax.set_title("Feature importances using permutation on full model")
 ax.set_ylabel("Mean accuracy decrease")
 fig.tight_layout()
@@ -331,7 +365,9 @@ plt.gcf().autofmt_xdate() # Rotation
 plt.savefig('Figures\Feature_Analysis\Feature_Importance_Permutation.png')
 plt.close()
 
+
 # plot the performances of the evaluated models
+plt.rcParams.update({'font.size': 11})
 fig, ax = plt.subplots()
 pyplot.boxplot(results_accuracy, 
                labels=names, 
@@ -344,10 +380,7 @@ pyplot.savefig('Figures\Feature_Analysis\Performance Analysis.png')
 plt.close()
 
 ########### plot t-SNE graph ##################
-
-
 sns.set(rc={'figure.figsize':(11.7,8.27)})
-
 fig, ax = plt.subplots()
 palette = sns.color_palette( 'bright',n_colors = 4  )
 tsne = TSNE()

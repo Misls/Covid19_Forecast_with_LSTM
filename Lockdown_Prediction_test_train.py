@@ -24,10 +24,10 @@ smooth = 3 # interval of days for rolling mean
 new_prediction = True
 
 # load data
-data_pred = pd.read_csv('data_test.csv')
+data_pred = pd.read_csv('data_test.csv')#.drop('Age + 2ndVac', axis = 1)
 data_test = data_pred['Lockdown-Intensity']
 pred_dates = pd.to_datetime(data_pred['Date'])
-data_current = pd.read_csv('data_train.csv')
+data_current = pd.read_csv('data_train.csv')#.drop('Age + 2ndVac', axis = 1)
 current_dates = pd.to_datetime(data_current['Date'])
 
 # hyperparameter
@@ -35,28 +35,21 @@ fut_pred = len(data_pred) # how many days should be predicted
 train_window = 14
 dim = 1 # number of features in LSTM (dim >1 if more than 1 column is used for training)
 hidden_layers =250
-hidden_layers_1 =250
 drop = 0.2
-drop_1 = 0
-num_layers = 2
-num_layers_1 = 1
+num_layers = 3
 batch_size = 1
 
 # define Long Short Term Memory Network (LSTM):
 class LSTM(nn.Module):
-    def __init__(self, input_size=dim, hidden_layer_size=hidden_layers, 
-        hidden_layer_size_1 = hidden_layers_1, 
-        ):
+    def __init__(self, input_size=dim, hidden_layer_size=hidden_layers):
 
         super().__init__()
 
         self.input_size = input_size
         self.hidden_layer_size = hidden_layer_size
-        self.hidden_layer_size_1 = hidden_layer_size_1
 
-        self.lstm = nn.LSTM(input_size, hidden_layer_size, num_layers, dropout = drop)
-        self.lstm_1 = nn.LSTM(hidden_layer_size, hidden_layer_size_1, num_layers_1, dropout = drop_1)        
-        self.linear = nn.Linear(hidden_layer_size_1, input_size)
+        self.lstm = nn.LSTM(input_size, hidden_layer_size, num_layers, dropout = drop)        
+        self.linear = nn.Linear(hidden_layer_size, input_size)
 
         self.hidden_cell = (torch.zeros(
             num_layers,
@@ -65,24 +58,14 @@ class LSTM(nn.Module):
                             torch.zeros(
                                 num_layers,
                                 batch_size,
-                                self.hidden_layer_size))
-        self.hidden_cell_1 = (torch.zeros(
-            num_layers_1,
-            batch_size,
-            self.hidden_layer_size_1),
-                            torch.zeros(
-                                num_layers_1,
-                                batch_size,
-                                self.hidden_layer_size_1))        
+                                self.hidden_layer_size))     
         #self.sigmoid = nn.Sigmoid()
 
     def forward(self, input_seq):
         self.lstm.flatten_parameters()
-        self.lstm_1.flatten_parameters()
         inpt = input_seq.view(len(input_seq) ,1, -1)
         lstm_out, self.hidden_cell = self.lstm(inpt, self.hidden_cell)
-        lstm_out_1, self.hidden_cell = self.lstm_1(lstm_out, self.hidden_cell_1)
-        predictions = self.linear(lstm_out_1.view(len(input_seq), -1))
+        predictions = self.linear(lstm_out.view(len(input_seq), -1))
         return predictions[-1]
 
 # load Lockdown-Classifier
@@ -96,7 +79,8 @@ if new_prediction:
     print('This Computation is running on {}'.format(device))
 
     data_pred = pd.DataFrame()
-    df = data_current.drop(['Date','Week',
+    df = data_current.drop(['Date',
+                'Week',
                 'Lockdown-Intensity'],axis=1)
     
     dates = pd.to_datetime(data_current['Date'])
@@ -142,15 +126,7 @@ if new_prediction:
                                 torch.zeros(
                                 num_layers,
                                 batch_size,
-                                model.hidden_layer_size).to(device))
-                model.hidden_cell_1 = (torch.zeros(
-                    num_layers_1,
-                    batch_size,
-                    model.hidden_layer_size_1).to(device),
-                                torch.zeros(
-                                num_layers_1,
-                                batch_size,
-                                model.hidden_layer_size_1).to(device))            
+                                model.hidden_layer_size).to(device))          
                 test_inputs.append(
                     model(seq.to(device)).detach().cpu().numpy().tolist())
         actual_predictions = scaler.inverse_transform(np.array(test_inputs[train_window:] ).reshape(-1, dim))
@@ -169,18 +145,21 @@ if new_prediction:
         ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
         plt.gcf().autofmt_xdate() # Rotation
-        plt.savefig('Figures\Prdiction_Graphs_Current\Prediction_'+col+'.png')
+        plt.savefig('Figures\Prdiction_Graphs_Current\Prediction_test-train'
+            +col+'.png')
         plt.close()
 ############## end of prediction loop ##############################
 
+#data_all = pd.read_csv('data_all.csv')
 data = data_current.append(data_pred)
+#data['Age + 2ndVac'] = data_all['Age']/max(data_all['Age'])*data_all['2nd_Vac']/max(data_all['2nd_Vac'])
 X = data.drop(['Date','Lockdown-Intensity'],axis=1)
 X = MinMaxScaler(feature_range=(0, 1)).fit_transform(X)
 
 y_pred_train = Pickled_Model.predict(X)
 score = y_pred_train[len(data_current):]==data_test
 accuracy = sum(score)/len(score)
-print(accuracy)
+print('Accuracy of the Forecast %1f' % (accuracy*100))
 
 y_pred = Pickled_Model.predict_proba(X)
 y_pred = pd.DataFrame(y_pred).rolling(smooth).sum()/smooth
@@ -202,5 +181,21 @@ ax = plt.gca()
 ax.xaxis.set_major_locator(mdates.DayLocator(interval=14))
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
 plt.gcf().autofmt_xdate() # Rotation
-plt.savefig('Figures\Prdiction_Graphs_Current\Lockdown_Probability_test_train.png')
+plt.savefig('Figures\Prdiction_Graphs_Current\Lockdown_Probability_train_test.png')
+plt.close()
+
+plt.rc('axes', prop_cycle=(cycler(color=['lightsteelblue', 'lime', 'darkorange', 'red']) 
+                            + cycler(linestyle=['-','-','-','-']))
+                           )
+fig, ax = plt.subplots()
+plt.plot(index, y_pred)
+plt.title("Probabilities for SARS-CoV-2 Measures")
+plt.ylabel("Probability")
+plt.xlabel('Date')
+plt.legend(['No Lockdown','Light', 'Middle', 'Hard'])
+ax = plt.gca()
+ax.xaxis.set_major_locator(mdates.DayLocator(interval=14))
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
+plt.gcf().autofmt_xdate() # Rotation
+plt.savefig('Figures\Prdiction_Graphs_Current\Lockdown_Probability_train_test2.png')
 plt.close()
