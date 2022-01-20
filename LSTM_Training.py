@@ -32,11 +32,11 @@ save_interval = 50 # automatic saving interval
 dim = 1 # number of features in LSTM (dim >1 if more than 1 column is used for training)
 fut_pred = 90 # how many days should be predicted
 train_window = 14
-epochs = 1500
+epochs = 500
 hidden_layers =250
 drop = 0.2
 num_layers = 3
-lr = 3e-6
+lr = 1e-5
 batch_size = 1
 
 # define cumpuation device
@@ -55,16 +55,59 @@ def create_inout_sequences(input_data, tw):
         inout_seq.append((train_seq ,train_label))
     return inout_seq
 
-def auto_save(model,loss,i,col):
+def auto_save(model,loss,i,col):  
     saved_epoch = 0
-    if i == 0:
+    if i%100 == 0:
+        print('saved epoch {} with loss {}' .format(i,loss[-1]))
+        Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl'  
+        Pkl_Filename_EVO = 'LSTM-Models\EVO\LSTM-'+col+'-'+str(i)+'.pkl'
+        saved_epoch = i
+        with open(Pkl_Filename, 'wb') as file:  
+            pickle.dump(model, file)
+        with open(Pkl_Filename_EVO, 'wb') as file:  
+            pickle.dump(model, file)
+        test_inputs = train_data_normalized[-train_window:].tolist()
+        for _ in range(fut_pred):
+            seq = torch.FloatTensor(test_inputs[-train_window:])
+            with torch.no_grad():
+                model.hidden_cell = (torch.zeros(
+                            num_layers,
+                            batch_size,
+                            model.hidden_layer_size)
+                    .to(device),
+                        torch.zeros(
+                            num_layers,
+                            batch_size,
+                            model.hidden_layer_size
+                            ).to(device))
+                test_inputs.append(model(seq.to(device)).detach().cpu().numpy().tolist())
+        actual_predictions = scaler.inverse_transform(np.array(test_inputs[train_window:] ).reshape(-1, dim))
+        # save the forcast into dataframe
+        df_pred[col]= pd.DataFrame(actual_predictions)
+        
+        # plot the forecast:
+        plt.subplots()
+        plt.title(col)
+        plt.ylabel('Value')
+        plt.xlabel('Date')
+        plt.grid(True)
+        plt.plot(dates,data[col])
+        plt.plot(pred_dates,actual_predictions[:,0])
+        ax = plt.gca()
+        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
+        plt.gcf().autofmt_xdate() # Rotation
+        plt.savefig('Figures\Prediction_Graphs_Evo\Prediction-'
+            +col+'-'+str(saved_epoch)+'.png')
+        plt.close()
+    elif i == 0:
         print('saved epoch {} with loss {}' .format(i,loss))
         Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl'  
         saved_epoch = i
         with open(Pkl_Filename, 'wb') as file:  
             pickle.dump(model, file)
         return saved_epoch
-    if i >= 50 and loss[-1]<min(loss[49:-1]) or i%save_interval == 0:
+    elif i >= 25 and loss[-1]<min(loss[24:-1]) or i%save_interval == 0:
             print('saved epoch {} with loss {}' .format(i,loss[-1]))
             Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl'  
             Pkl_Filename_EVO = 'LSTM-Models\EVO\LSTM-'+col+'-'+str(i)+'.pkl'
@@ -195,9 +238,9 @@ for col in df.columns:
 # initialize model:
     model = LSTM().to(device)
 
-    Pkl_Filename = Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl' 
-    with open(Pkl_Filename, 'rb') as file:  
-        model = pickle.load(file)
+   # Pkl_Filename = Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl' 
+   # with open(Pkl_Filename, 'rb') as file:  
+    #    model = pickle.load(file)
 
     loss_function = nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

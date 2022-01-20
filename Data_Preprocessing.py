@@ -40,7 +40,6 @@ data_infections = pd.read_csv(
     'https://github.com/robert-koch-institut/'
     +'SARS-CoV-2_Infektionen_in_Deutschland/blob/master/'+
     'Aktuell_Deutschland_SarsCov2_Infektionen.csv?raw=true')
-
 r = requests.get(
     'https://www.rki.de/DE/Content/InfAZ/N/'
     +'Neuartiges_Coronavirus/Daten/Impfquotenmonitoring.xlsx'+
@@ -66,7 +65,7 @@ r = requests.get(
     'Klinische_Aspekte.xlsx?__blob=publicationFile', 
     headers={"User-Agent": "Chrome"}
     )
-data_all = pd.read_excel(BytesIO(r.content),header=2)
+data_all = pd.read_excel(BytesIO(r.content),header=3)
 ################## data preprocessing ##################
 
 # filter for reasonable columns and rename them
@@ -254,9 +253,9 @@ data_final = data[[
     #'Hospitalization',
     'Incidence',
     'Intensive_Care',
-    'Deaths',
+    #'Deaths',
     #'1rst_Vac',
-    #'2nd_Vac',
+    '2nd_Vac',
     #'Age + 2ndVac',
     #'Booster',#
     'Lockdown-Intensity'
@@ -355,6 +354,19 @@ ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
 plt.gcf().autofmt_xdate() # Rotation
 plt.savefig('Figures\Data_Graphs\Covid-Data-ITS.png')
 
+
+plt.subplots()
+plt.plot(index,data['Lockdown-Intensity'].astype(str).astype(int))
+plt.ylabel('Level of anti-Covid measures')
+plt.xlabel('Date')
+ax = plt.gca()
+plt.tight_layout()
+ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m-%Y'))
+plt.gcf().autofmt_xdate() # Rotation
+plt.savefig('Figures\Data_Graphs\Covid-Data-Levels.png')
+
+
 ########### plot correlation matrix ##################
 corr = data_final.corr().round(1)
 corr.style.background_gradient(cmap='PuOr')
@@ -363,4 +375,10 @@ sns.heatmap(corr, annot = True)
 fig.autofmt_xdate()
 plt.tight_layout()
 plt.savefig('Figures\Feature_Analysis\correlation.png')
+plt.close()
+
+corr_all = data.corr().round(1)
+sns.clustermap(corr_all, cmap='coolwarm', standard_scale=1)
+plt.tight_layout()
+plt.savefig('Figures\Feature_Analysis\clustermap_all.png')
 plt.close()
