@@ -226,8 +226,8 @@ Lockdown = pd.DataFrame([
                     ('2021-06-20', '0'),
                     # from here dates are based on RKI recommendations
                     ('2021-08-14', '1'),
-                    ('2021-08-26', '2'),
-                    ('2021-11-07', '3')
+                    ('2021-10-14', '2'),
+                    ('2021-12-28', '3')
                     ],       
            columns=('Date', 'Lockdown-Intensity')
                  )
@@ -250,10 +250,10 @@ data_final = data[[
     'Age',
     'Gender', 
     #'Cases',
-    #'Hospitalization',
-    'Incidence',
+    'Hospitalization',
+    #'Incidence',
     'Intensive_Care',
-    #'Deaths',
+    'Deaths',
     #'1rst_Vac',
     '2nd_Vac',
     #'Age + 2ndVac',

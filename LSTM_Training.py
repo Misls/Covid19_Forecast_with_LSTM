@@ -205,14 +205,12 @@ df = data.drop(['Date',
 
 # choose features for training
 df = df[[
-        #'Age',
-        #'Intensive_Care',
+        'Age',
+        'Intensive_Care',
         #'Hospitalization',
-        'Incidence', 
+        #'Incidence', 
         #'2nd_Vac',
-        #'Booster',
         #'Gender',
-        #'R-value',
         #'Deaths'
         ]]
 #########################################################
@@ -238,9 +236,9 @@ for col in df.columns:
 # initialize model:
     model = LSTM().to(device)
 
-   # Pkl_Filename = Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl' 
-   # with open(Pkl_Filename, 'rb') as file:  
-    #    model = pickle.load(file)
+    Pkl_Filename = Pkl_Filename = 'LSTM-Models\LSTM-'+col+'.pkl' 
+    with open(Pkl_Filename, 'rb') as file:  
+        model = pickle.load(file)
 
     loss_function = nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
